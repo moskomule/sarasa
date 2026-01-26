@@ -17,6 +17,22 @@ def test_config_custom_model_type():
     assert cfg.model.param == 42
 
 
+def test_config_complex_custom_model_type(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["program", "model:llama3", "--model.param", "100"])
+
+    @dataclasses.dataclass
+    class Llama3:
+        param: int = 42
+
+    @dataclasses.dataclass
+    class Qwen3:
+        param: str = "hello"
+
+    cfg = Config.from_cli(model_type=Llama3 | Qwen3)
+    assert isinstance(cfg.model, Llama3)
+    assert cfg.model.param == 100
+
+
 @pytest.fixture
 def config_json() -> str:
     file = pathlib.Path("config.json")
