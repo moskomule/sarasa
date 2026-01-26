@@ -78,7 +78,7 @@ class Checkpointer:
             if self.save_future is not None:
                 self.save_future.result()
             if self.stager is None:
-                self.stager = self.stager = DefaultStager(StagingOptions(True, True, True, True))
+                self.stager = DefaultStager(StagingOptions(True, True, True, True))
             ret = dcp.async_save(
                 state_dict,
                 storage_writer=None,
