@@ -57,7 +57,7 @@ class LRScheduler:
                 decay = torch.optim.lr_scheduler.CosineAnnealingLR(
                     optimizer,
                     T_max=decay_steps,
-                    eta_min=self.min_lr_factor,
+                    eta_min=optimizer.param_groups[0]["lr"] * self.min_lr_factor,
                 )
 
         scheduler = torch.optim.lr_scheduler.SequentialLR(
