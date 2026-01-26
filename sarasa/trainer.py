@@ -166,7 +166,7 @@ class Trainer:
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(),
                 self.config.train.grad_clip,
-                foreach=True,
+                foreach=self.device.type == "cuda",
             )
         if self.checkpointer is not None:
             self.checkpointer.wait_for_staging()
@@ -186,11 +186,15 @@ class Trainer:
         else:
             avg_loss = max_loss = loss
 
+        lr = self.lr_schedulers.schedulers[0].get_last_lr()[0]
         self.metrics_processor.log(
             self.step,
             global_avg_loss=avg_loss.item(),
             global_max_loss=max_loss.item(),
-            extra_metrics={"grad_norm": grad_norm.item() if grad_norm >= 0 else float("nan")},
+            extra_metrics={
+                "grad_norm": grad_norm.item() if grad_norm >= 0 else float("nan"),
+                "lr": lr,
+            },
         )
 
     def evaluate(self):

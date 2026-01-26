@@ -32,7 +32,7 @@ class LRScheduler:
         stay_steps = 0 if self.decay_ratio is None else int(total_iters * (1 - self.decay_ratio)) - warmup_steps
         decay_steps = total_iters - warmup_steps - stay_steps
 
-        warmup = torch.optim.lr_scheduler.LinearLR(optimizer, 1 / warmup_steps, total_iters=warmup_steps)
+        warmup = torch.optim.lr_scheduler.LinearLR(optimizer, 1 / max(1, warmup_steps), total_iters=warmup_steps)
 
         stay = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=1.0, total_iters=stay_steps)
 
@@ -200,15 +200,25 @@ class Config[
                     import tomllib
 
                     loaded_config = tomllib.load(f)
+            else:
+                raise ValueError("Config file must be a .json or .toml file")
 
             types = get_type_hints(cls)
-            loaded_config = cls(**{
-                field.name: types[field.name](**loaded_config[field.name])
-                for field in dataclasses.fields(cls)
-                if field.name in loaded_config
+            types.update({
+                "model": model_type,
+                "optim": optim_type,
+                "lr_scheduler": lr_scheduler_type,
+                "data": data_type,
             })
 
-        return tyro.cli(
-            cls[model_type, optim_type, lr_scheduler_type, data_type],
-            default=loaded_config,
-        )
+            updates = {}
+            for field in dataclasses.fields(cls):
+                if field.name in loaded_config:
+                    updates[field.name] = types[field.name](**loaded_config[field.name])
+                else:
+                    dc = types[field.name]
+                    updates[field.name] = dc() if dataclasses.is_dataclass(dc) else field.default
+
+            loaded_config = cls(**updates)
+
+        return tyro.cli(cls[model_type, optim_type, lr_scheduler_type, data_type], default=loaded_config)

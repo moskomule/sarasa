@@ -1,0 +1,16 @@
+[train]
+steps = 10
+grad_clip = 1.0
+dtype = "bfloat16"
+local_batch_size = 8
+global_batch_size = 8
+
+[lr_scheduler]
+decay_type = "linear"
+warmup_steps = 0
+
+[checkpoint]
+save_freq = -1
+
+[data]
+tokenizer_path = "tokenizer"

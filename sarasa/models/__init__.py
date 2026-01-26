@@ -1,8 +1,6 @@
 import dataclasses
 from typing import Literal
 
-from loguru import logger
-
 from .base import BaseModel as BaseModel
 
 
@@ -23,8 +21,6 @@ class ModelConfig:
         self.hidden_dim = self.hidden_dim or (self.num_layers * 64 + self.head_dim - 1) // self.head_dim * self.head_dim
         self.num_heads = self.num_heads or self.hidden_dim // self.head_dim
         self.num_kv_heads = self.num_kv_heads or self.num_heads
-
-        logger.info(f"ModelConfig initialized: {self}")
 
     def create(self) -> BaseModel:
         if self.vocab_size is None or self.seq_len is None:
