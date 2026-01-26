@@ -1,0 +1,7 @@
+train:
+  steps: 100
+  grad_clip: 1.0
+
+lr_scheduler:
+  type: linear
+  warmup_steps: 0
