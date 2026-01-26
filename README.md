@@ -17,7 +17,7 @@ uv add git+https://github.com/moskomule/sarasa.git
 ## Usage
 
 ```bash
-uv run torchrun --nproc_per_node="gpu" train.py\
+uv run torchrun --nproc_per_node="gpu" main.py\
 [--config-file /path/to/config.yaml]\ # config file is optional
 [--seed 42] [--train.steps 1000] # override config values from command line
 ```
