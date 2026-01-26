@@ -186,7 +186,7 @@ class Trainer:
         else:
             avg_loss = max_loss = loss
 
-        lr = self.lr_schedulers.schedulers[0].get_last_lr()[0]
+        lr = self.lr_scheduler.get_last_lr()[0]
         self.metrics_processor.log(
             self.step,
             global_avg_loss=avg_loss.item(),
