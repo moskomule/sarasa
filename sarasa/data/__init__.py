@@ -26,7 +26,7 @@ class DataConfig:
         batch_size: int,
     ) -> dict[str, Any]:
         # return {"tokenizer": tokenizer, "train_loader": train_loader, "val_loader": val_loader | None}
-        tokenizer = HFTokenizerWrapper(self.tokenizer_path)
+        tokenizer = HFTokenizerWrapper(Path(self.tokenizer_path))
         ds = HFTextDataset(self.dataset, "train", tokenizer, self.seq_len)
         data_loader = DataLoader(ds, batch_size, num_workers=self.num_workers, pin_memory=self.pin_memory)
 
