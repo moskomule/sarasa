@@ -246,6 +246,7 @@ class MetricsProcessor:
         self.device_mem_monitor.reset_peak_stats()
 
     def val_log(
+        self,
         step: int,
         val_loss: float,
         extra_metrics: dict[str, float] | None = None,

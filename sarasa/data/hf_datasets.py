@@ -65,6 +65,7 @@ class HFTextDataset(IterableDataset):
         infinite: bool = True,
         cache_dir: str | None = None,
     ):
+        self.dataset_name = dataset_name
         if dataset_name in Datasets:
             ds = Datasets(dataset_name).load()
 
