@@ -18,7 +18,7 @@ class Datasets(enum.StrEnum):
 
     def load(
         self,
-        cache_dir: str | None = None,
+        cache_dir: str | None,
     ) -> Any:
         match self:
             case Datasets.c4:
@@ -67,7 +67,7 @@ class HFTextDataset(IterableDataset):
     ):
         self.dataset_name = dataset_name
         if dataset_name in Datasets:
-            ds = Datasets(dataset_name).load()
+            ds = Datasets(dataset_name).load(cache_dir=cache_dir)
 
         else:
             logger.warning(f"Unknown dataset: {dataset_name}. Trying to use `load_dataset` directly.")

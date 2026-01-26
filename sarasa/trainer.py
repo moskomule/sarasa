@@ -55,6 +55,7 @@ class Trainer:
             apply_distributed(
                 self.model,
                 mode=config.distributed.mode,
+                device=self.device,
                 compile=config.train.compile,
                 reshard_after_forward=config.train.reshard_after_forward,
             )
@@ -72,6 +73,7 @@ class Trainer:
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
         # setup metrics and ckeckpointer
+        # todo: configure num_flops_per_token
         self.metrics_processor = MetricsProcessor(config, self.device)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
 

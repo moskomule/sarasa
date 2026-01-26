@@ -41,6 +41,7 @@ class Checkpointer:
         self.config = config
         self.checkpoint_freq = config.checkpoint.save_freq
         self.checkpoint_dir = Path(config.output_dir) / "checkpoints"
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.async_mode = AsyncMode(config.checkpoint.async_mode)
         if self.async_mode != AsyncMode.none:
             self.pg = dist.new_group(backend="gloo")
@@ -48,6 +49,7 @@ class Checkpointer:
         self.stager = None
         self.save_future = None
         self.stage_future = None
+        self.model = model
 
     @torch.inference_mode()
     def save(
@@ -97,8 +99,6 @@ class Checkpointer:
             )
 
         logger.info(f"Finished saving checkpoint at step {step} in {time.perf_counter() - begin:.2f} seconds")
-
-        return ret
 
     def wait_for_staging(self) -> None:
         # no-op if not using mem_pinned async mode

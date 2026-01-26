@@ -20,6 +20,8 @@ from sarasa.optimizers import AdamWConfig as AdamW  # noqa
 class LRScheduler:
     warmup_steps: int = 200
     decay_ratio: float | None = None
+    """If set, the ratio of total steps to apply decay after warmup. If None, decay starts immediately after warmup."""
+
     decay_type: Literal["linear", "cosine", "sqrt"] = "linear"
     min_lr_factor: float = 0.0
 
@@ -28,10 +30,15 @@ class LRScheduler:
         optimizer: torch.optim.Optimizer,
         total_iters: int,
     ) -> torch.optim.lr_scheduler._LRScheduler:
+        assert self.decay_ratio is None or (0 <= self.decay_ratio <= 1), "decay_ratio must be between 0 and 1"
         warmup_steps = self.warmup_steps
         stay_steps = 0 if self.decay_ratio is None else int(total_iters * (1 - self.decay_ratio)) - warmup_steps
         decay_steps = total_iters - warmup_steps - stay_steps
+        assert warmup_steps >= 0 and decay_steps >= 0 and stay_steps >= 0, (
+            f"Invalid lr scheduler steps configuration: {warmup_steps=}, {decay_steps=}, {stay_steps=}"
+        )
 
+        # 1 / max(1, warmup_steps) to avoid division by zero
         warmup = torch.optim.lr_scheduler.LinearLR(optimizer, 1 / max(1, warmup_steps), total_iters=warmup_steps)
 
         stay = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=1.0, total_iters=stay_steps)

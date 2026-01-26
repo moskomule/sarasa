@@ -27,10 +27,11 @@ def set_dtype(
 class GarbageCollector:
     def __init__(
         self,
-        gc_freq: int | None,
+        gc_freq: int,
     ) -> None:
         self.gc_freq = gc_freq
         if self.gc_freq > 0:
+            # manually manage gc
             gc.disable()
 
     def collect(
@@ -38,6 +39,7 @@ class GarbageCollector:
         step: int,
     ) -> None:
         if self.gc_freq <= 0:
+            # auto gc, nothing to do
             return
 
         if step % self.gc_freq == 0:
@@ -99,10 +101,11 @@ def update_timeout(
 def apply_distributed(
     model: nn.Module,
     mode: Literal["ddp", "fsdp"],
+    device: torch.device,
     compile: bool,
     reshard_after_forward: bool,
 ) -> None:
-    mesh = dist.device_mesh.init_device_mesh("cuda", (world_size(),))
+    mesh = dist.device_mesh.init_device_mesh(device.type, (world_size(),))
 
     if mode == "ddp":
         from torch.distributed._composable.replicate import replicate
@@ -116,6 +119,7 @@ def apply_distributed(
     elif mode == "fsdp":
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
+        # todo: make dtypes configurable
         mp_policy = MixedPrecisionPolicy(
             param_dtype=torch.bfloat16,
             reduce_dtype=torch.float32,
