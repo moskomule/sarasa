@@ -125,6 +125,8 @@ class Checkpoint:
 
 @dataclasses.dataclass
 class Distributed:
+    backend: Literal["nccl", "gloo"] = "nccl"
+
     mode: Literal["ddp", "fsdp"] = "ddp"
     """Distributed training mode."""
 

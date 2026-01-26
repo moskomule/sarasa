@@ -74,12 +74,13 @@ def local_rank() -> int:
 
 
 def init_distributed(
+    backend: str,
     init_timeout_seconds: int,
 ) -> None:
     if "RANK" in os.environ:
         # run with torchrun
         dist.init_process_group(
-            backend="nccl",
+            backend=backend,
             timeout=timedelta(seconds=init_timeout_seconds),
         )
         logger.info("Initialized distributed process group")

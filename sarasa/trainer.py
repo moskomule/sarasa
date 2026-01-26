@@ -36,7 +36,7 @@ class Trainer:
         self.gc = GarbageCollector(config.train.gc_freq)
 
         # setup distributed
-        init_distributed(config.distributed.init_timeout_seconds)
+        init_distributed(config.distributed.backend, config.distributed.init_timeout_seconds)
 
         # setup data and tokenizer -> use vocab size for model setup
         data = config.data.create(batch_size=config.train.local_batch_size)
