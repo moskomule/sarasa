@@ -80,7 +80,6 @@ def init_distributed(
         # run with torchrun
         dist.init_process_group(
             backend="nccl",
-            device_id=int(os.environ["LOCAL_RANK"]),
             timeout=timedelta(seconds=init_timeout_seconds),
         )
         logger.info("Initialized distributed process group")
