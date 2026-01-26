@@ -4,7 +4,6 @@ import os
 import time
 from datetime import timedelta
 from functools import cache
-from typing import Literal
 
 import torch
 from loguru import logger
@@ -91,7 +90,7 @@ def update_timeout(
     device: torch.device,
 ) -> None:
     logger.info(f"Updating distributed timeout to {timeout_seconds} seconds")
-    torch.distributed.barrier(device_ids=[device.index])
+    torch.distributed.barrier(device_ids=[torch.accelerator.current_device_index()])
     torch.accelerator.synchronize(device)
 
     # at the moment, default process group is the only one supported (None)
@@ -99,15 +98,14 @@ def update_timeout(
 
 
 def apply_distributed(
+    config,
     model: nn.Module,
-    mode: Literal["ddp", "fsdp"],
     device: torch.device,
     compile: bool,
-    reshard_after_forward: bool,
 ) -> None:
     mesh = dist.device_mesh.init_device_mesh(device.type, (world_size(),))
 
-    if mode == "ddp":
+    if config.name == "ddp":
         from torch.distributed._composable.replicate import replicate
 
         if compile:
@@ -116,7 +114,7 @@ def apply_distributed(
         replicate(model, device_mesh=mesh, bucket_cap_mb=100)
         logger.info("Applied DDP to the model")
 
-    elif mode == "fsdp":
+    elif config.name == "fsdp":
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
         # todo: make dtypes configurable
@@ -126,10 +124,10 @@ def apply_distributed(
         )
 
         for block in model.blocks:
-            fully_shard(block, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=reshard_after_forward)
-        fully_shard(model, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=reshard_after_forward)
+            fully_shard(block, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
+        fully_shard(model, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
 
         logger.info(
             f"Applied FSDP to the model (param_dtype={mp_policy.param_dtype}, "
-            f"reduce_dtype={mp_policy.reduce_dtype}, reshard_after_forward={reshard_after_forward})"
+            f"reduce_dtype={mp_policy.reduce_dtype}, reshard_after_forward={config.reshard_after_forward})"
         )

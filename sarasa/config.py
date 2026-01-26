@@ -1,7 +1,8 @@
 import dataclasses
 import sys
+import typing
 from pathlib import Path
-from typing import Literal, get_type_hints
+from typing import Literal
 
 import torch
 
@@ -95,9 +96,6 @@ class Train:
     gc_freq: int = 10
     """Garbage collection frequency (in steps). If -1, no periodic GC is performed."""
 
-    reshard_after_forward: bool = False
-    """Whether to reshard model parameters after each forward pass (FSDP only)."""
-
     local_batch_size: int = 32
     """local (per device) batch size"""
 
@@ -127,14 +125,26 @@ class Checkpoint:
 class Distributed:
     backend: Literal["nccl", "gloo"] = "nccl"
 
-    mode: Literal["ddp", "fsdp"] = "ddp"
-    """Distributed training mode."""
-
     init_timeout_seconds: int = 300
     """Timeout for initializing the distributed process group."""
 
     train_timeout_seconds: int = 100
     """Timeout for distributed training operations after the first iteration."""
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__.lower()
+
+
+@dataclasses.dataclass
+class DDP(Distributed):
+    pass
+
+
+@dataclasses.dataclass
+class FSDP(Distributed):
+    reshard_after_forward: bool = False
+    """Whether to reshard model parameters after each forward pass (FSDP only)."""
 
 
 @dataclasses.dataclass
@@ -151,7 +161,7 @@ class Config[
     lr_scheduler: LRSchedulerT
     metrics: Metrics
     checkpoint: Checkpoint
-    distributed: Distributed
+    distributed: DDP | FSDP
 
     seed: int = 0
     debug: bool = False
@@ -212,7 +222,7 @@ class Config[
             else:
                 raise ValueError("Config file must be a .json or .toml file")
 
-            types = get_type_hints(cls)
+            types = typing.get_type_hints(cls)
             types.update({
                 "model": model_type,
                 "optim": optim_type,
@@ -226,7 +236,13 @@ class Config[
                     updates[field.name] = types[field.name](**loaded_config[field.name])
                 else:
                     dc = types[field.name]
-                    updates[field.name] = dc() if dataclasses.is_dataclass(dc) else field.default
+                    if typing.get_origin(dc) is typing.Union:
+                        dc = typing.get_args(dc)[0]  # take the first type in the Union
+
+                    if dataclasses.is_dataclass(dc):
+                        updates[field.name] = dc()
+                    else:
+                        updates[field.name] = field.default
 
             loaded_config = cls(**updates)
 

@@ -50,14 +50,16 @@ class Trainer:
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
+            logger.info(
+                f"Model created with {sum(p.numel() for p in self.model.parameters() if p.requires_grad) / 1e6:.2f}M parameters"
+            )
 
         if world_size() > 1:
             apply_distributed(
+                config.distributed,
                 self.model,
-                mode=config.distributed.mode,
                 device=self.device,
                 compile=config.train.compile,
-                reshard_after_forward=config.train.reshard_after_forward,
             )
 
         self.model.to_empty(device=self.device)
@@ -85,7 +87,7 @@ class Trainer:
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context = contextlib.nullcontext()
-        if config.distributed.mode != "fsdp":
+        if config.distributed.name != "fsdp":
             self.amp_context = torch.autocast(device_type=self.device.type, dtype=getattr(torch, config.train.dtype))
 
         # todo: setup profiler context
@@ -94,7 +96,10 @@ class Trainer:
     def __del__(self) -> None:
         # cleanup distributed
         if world_size() > 1:
-            dist.destroy_process_group()
+            try:
+                dist.destroy_process_group()
+            except Exception as e:
+                logger.warning(f"Failed to destroy process group: {e}")
 
     @record
     def train(self):

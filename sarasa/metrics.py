@@ -215,7 +215,10 @@ class MetricsProcessor:
             "time/data_load(%)": time_data_load_perc,
         }
 
-        log = f"[Step {step:>10}] loss: {global_avg_loss:.4f}, memory: {device_mem_stats.max_active_gib:.2f} GiB"
+        log = (
+            f"[Step {step:>10}] loss: {global_avg_loss:.4f}, memory: {device_mem_stats.max_active_gib:.2f} GiB, "
+            f"time(s): {time_ete:.2f}sec (data load ratio: {time_data_load_perc:.1f}%)"
+        )
 
         if extra_metrics is not None:
             metrics.update(extra_metrics)
