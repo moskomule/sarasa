@@ -248,7 +248,7 @@ class GPT(BaseModel):
         """
         nparams = sum(p.numel() for p in self.parameters())
         nparams_embedding = self.transformer.wte.weight.numel()
-        l, h, q, t = (
+        l, h, q, t = (  # noqa: E741
             self.num_layers,
             self.num_heads,
             self.hidden_dim // self.num_heads,
