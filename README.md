@@ -22,7 +22,7 @@ uv run torchrun --nproc_per_node="gpu" train.py\
 [--seed 42] [--train.steps 1000] # override config values from command line
 ```
 
-### Extenting with Custom Components
+### Extending with Custom Components
 
 Extending Sarasa is as simple as defining your own configuration dataclasses with `create` methods for custom models, optimizers, data loaders, etc. 
 Here's an example of using a custom optimizer:
