@@ -85,8 +85,8 @@ class Train:
 
     compile: bool = False
 
-    gc_freq: int | None = None
-    """Garbage collection frequency (in steps). If None, no periodic GC is performed."""
+    gc_freq: int = 10
+    """Garbage collection frequency (in steps). If -1, no periodic GC is performed."""
 
     reshard_after_forward: bool = False
     """Whether to reshard model parameters after each forward pass (FSDP only)."""

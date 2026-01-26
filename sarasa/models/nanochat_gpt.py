@@ -65,14 +65,13 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)  # QK rotary embedding
         q, k = rms_norm(q), rms_norm(k)  # QK norm
-        with torch.nn.attention.sdpa_kernel(backends=[torch.nn.attention.SDPBackend.FLASH_ATTENTION]):
-            y = F.scaled_dot_product_attention(
-                q.transpose(1, 2),
-                k.transpose(1, 2),
-                v.transpose(1, 2),
-                is_causal=True,
-                enable_gqa=self.n_head != self.n_kv_head,
-            )
+        y = F.scaled_dot_product_attention(
+            q.transpose(1, 2),
+            k.transpose(1, 2),
+            v.transpose(1, 2),
+            is_causal=True,
+            enable_gqa=self.n_head != self.n_kv_head,
+        )
 
         # Re-assemble the heads side by side and project back to residual stream
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
@@ -136,6 +135,12 @@ class GPT(BaseModel):
         => We actually initialize all data (parameters, buffers, etc.) in init_weights() instead.
         """
         super().__init__()
+        self.num_heads = num_heads
+        self.hidden_dim = hidden_dim
+        self.seq_len = seq_len
+        self.vocab_size = vocab_size
+        self.num_layers = num_layers
+
         # For DDP, we want vocab_size divisible by world_size. Also, there are potential performance benefits, see:
         # https://huggingface.co/docs/transformers/main_classes/model#transformers.PreTrainedModel.resize_token_embeddings
         padded_vocab_size = ((vocab_size + pad_vocab_size_to - 1) // pad_vocab_size_to) * pad_vocab_size_to
@@ -187,7 +192,7 @@ class GPT(BaseModel):
         torch.nn.init.normal_(self.lm_head.weight, mean=0.0, std=0.001)
 
         # Transformer blocks: uniform init with bound = sqrt(3) * std (same standard deviation as normal)
-        n_embd = self.config.n_embd
+        n_embd = self.hidden_dim
         s = 3**0.5 * n_embd**-0.5  # sqrt(3) multiplier makes sure Uniform achieves the same std as Normal
         for block in self.transformer.h:
             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)  # weights use Uniform to avoid outliers
@@ -202,7 +207,7 @@ class GPT(BaseModel):
         self.x0_lambdas.fill_(0.0)  # 0.0 => skip connection to input is disabled at init
 
         # Rotary embeddings
-        head_dim = self.config.n_embd // self.config.n_head
+        head_dim = self.hidden_dim // self.num_heads
         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
         self.cos, self.sin = cos, sin
 
@@ -244,10 +249,10 @@ class GPT(BaseModel):
         nparams = sum(p.numel() for p in self.parameters())
         nparams_embedding = self.transformer.wte.weight.numel()
         l, h, q, t = (
-            self.config.n_layer,
-            self.config.n_head,
-            self.config.n_embd // self.config.n_head,
-            self.config.sequence_len,
+            self.num_layers,
+            self.num_heads,
+            self.hidden_dim // self.num_heads,
+            self.seq_len,
         )
         num_flops_per_token = 6 * (nparams - nparams_embedding) + 12 * l * h * q * t
         return num_flops_per_token
@@ -287,23 +292,23 @@ class GPT(BaseModel):
 
     def forward(
         self,
-        idx: torch.Tensor,
+        input: torch.Tensor,
     ) -> torch.Tensor:
-        B, T = idx.size()
+        B, T = input.size()
 
         # Grab the rotary embeddings for the current sequence length (they are of shape (1, seq_len, 1, head_dim/2))
         assert T <= self.cos.size(1), (
             f"Sequence length grew beyond the rotary embeddings cache: {T} > {self.cos.size(1)}"
         )
-        assert idx.device == self.cos.device, (
-            f"Rotary embeddings and idx are on different devices: {idx.device} != {self.cos.device}"
+        assert input.device == self.cos.device, (
+            f"Rotary embeddings and idx are on different devices: {input.device} != {self.cos.device}"
         )
         assert self.cos.dtype == torch.bfloat16, "Rotary embeddings must be in bfloat16"
         # if kv cache exists, we need to offset the rotary embeddings to the current position in the cache
         cos_sin = self.cos[:, :T], self.sin[:, :T]  # truncate cache to current sequence length
 
         # Forward the trunk of the Transformer
-        x = self.transformer.wte(idx)
+        x = self.transformer.wte(input)
         x = rms_norm(x)
         x0 = x  # save initial normalized embedding for x0 residual
         for i, block in enumerate(self.transformer.h):
@@ -314,8 +319,8 @@ class GPT(BaseModel):
         # Forward the lm_head (compute logits)
         softcap = 15  # smoothly cap the logits to the range [-softcap, softcap]
         logits = self.lm_head(x)  # (B, T, padded_vocab_size) <- very big tensor, large amount of memory
-        logits = logits[..., : self.config.vocab_size]  # slice to remove padding
+        logits = logits[..., : self.vocab_size]  # slice to remove padding
         logits = logits.float()  # switch to fp32 for logit softcap and loss computation
         logits = softcap * torch.tanh(logits / softcap)  # squash the logits
 
-        return logits.reshape(-1, logits.size(-1))
+        return logits

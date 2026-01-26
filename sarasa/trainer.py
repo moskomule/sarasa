@@ -4,21 +4,14 @@ import time
 from collections.abc import Iterable
 
 import torch
-import torrch.distributed as dist
+import torch.distributed as dist
 from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
-from sarasa.distributed_utils import (
-    apply_distributed,
-    cleanup_distributed,
-    init_distributed,
-    update_timeout,
-    world_size,
-)
 from sarasa.metrics import MetricsProcessor
-from sarasa.utils import GarbageCollector
+from sarasa.utils import GarbageCollector, apply_distributed, init_distributed, set_dtype, update_timeout, world_size
 
 IGNORE_INDEX = -100
 
@@ -46,7 +39,7 @@ class Trainer:
         init_distributed(config.distributed.init_timeout_seconds)
 
         # setup data and tokenizer -> use vocab size for model setup
-        data = config.data.create()
+        data = config.data.create(batch_size=config.train.local_batch_size)
         self.data_loader = data["train_loader"]  # setup data loader
         self.val_loader = data.get("val_loader", None)  # setup eval data loader
         self.tokenizer = data["tokenizer"]  # setup tokenizer
@@ -55,7 +48,7 @@ class Trainer:
         self.config.model.vocab_size = vocab_size
 
         # setup model, optimizer, lr scheduler
-        with torch.device("meta"):
+        with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
 
         if world_size() > 1:
@@ -66,7 +59,7 @@ class Trainer:
                 reshard_after_forward=config.train.reshard_after_forward,
             )
 
-        self.model.to_empty(device=self.device, dtype=getattr(torch, config.train.dtype))
+        self.model.to_empty(device=self.device)
         self.model.init_weights()
 
         if config.train.compile:
@@ -75,12 +68,12 @@ class Trainer:
             self.model.compile()
             logger.info("Compiled the model")
 
-        self.optimizer = self.config.optimizer.create(self.model)
+        self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
         # setup metrics and ckeckpointer
         self.metrics_processor = MetricsProcessor(config, self.device)
-        self.checkpointer = Checkpointer(config, self.model)  # setup checkpointer
+        self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
 
         # todo: support other loss functions
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
@@ -98,7 +91,8 @@ class Trainer:
 
     def __del__(self) -> None:
         # cleanup distributed
-        cleanup_distributed()
+        if world_size() > 1:
+            dist.destroy_process_group()
 
     @record
     def train(self):
@@ -106,18 +100,20 @@ class Trainer:
             data_iter = self.batch_generator(self.data_loader)
             for _ in range(self.config.train.steps):
                 self.step += 1
+                self.gc.collect(self.step)
                 try:
                     self.train_step(data_iter)
                 except StopIteration:
                     logger.warning("Data loader exhausted during training.")
                     break
 
-                self.checkpointer.save(self.step)
+                if self.checkpointer is not None:
+                    self.checkpointer.save(self.step)
 
                 if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
                     self.evaluate()
 
-                if self.step == 1:
+                if world_size() > 1 and self.step == 1:
                     update_timeout(self.config.distributed.train_timeout_seconds, self.device)
 
         logger.info("Training completed.")
@@ -126,6 +122,7 @@ class Trainer:
         self,
         data_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
     ) -> Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]]:
+        data_iter = iter(data_iter)
         while True:
             begin = time.perf_counter()
             batch = next(data_iter)
@@ -158,7 +155,7 @@ class Trainer:
 
             with self.amp_context:
                 pred = self.model(**input_dict)
-                loss = self.loss_fn(pred, target) / valid_tokens
+                loss = self.loss_fn(pred.flatten(0, 1), target.flatten(0, 1)) / valid_tokens
 
             del pred
             loss.backward()
@@ -171,7 +168,8 @@ class Trainer:
                 self.config.train.grad_clip,
                 foreach=True,
             )
-        self.checkpointer.wait_for_staging()
+        if self.checkpointer is not None:
+            self.checkpointer.wait_for_staging()
         self.optimizer.step()
         self.lr_scheduler.step()
 

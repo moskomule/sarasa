@@ -86,21 +86,38 @@ class DeviceMemoryMonitor:
         device: torch.device,
     ) -> None:
         self.device = device
-        _, self.total_mem = torch.accelerator.get_memory_info(self.device)
-        self.device_name = _get_device_module(self.device).get_device_name(self.device)
+        try:
+            _, self.total_mem = torch.accelerator.get_memory_info(self.device)
+            self.device_name = _get_device_module(self.device.type).get_device_name(self.device)
+        except RuntimeError:
+            if self.device.type == "mps":
+                self.total_mem = torch.mps.recommended_max_memory()
+                self.device_name = "Apple Silicon GPU"
+            else:
+                raise NotImplementedError(f"Device memory monitor not implemented for device type: {self.device.type}")
 
         self.reset_peak_stats()
-        torch.accelerator.empty_cache(self.device)
+        try:
+            torch.accelerator.empty_cache()
+        except RuntimeError:
+            logger.error(f"Failed to empty cache for device type: {self.device.type}")
 
     @staticmethod
     def to_gib(bytes: int) -> float:
         return bytes / (1024**3)
 
     def reset_peak_stats(self) -> None:
-        torch.accelerator.reset_peak_memory_stats(self.device)
+        try:
+            torch.accelerator.reset_peak_memory_stats(self.device)
+        except RuntimeError:
+            logger.error(f"Failed to reset peak memory stats for device type: {self.device.type}")
 
     def get_peak_stats(self) -> DevMemStats:
-        info = torch.accelerator.memory_stats(self.device)
+        try:
+            info = torch.accelerator.memory_stats(self.device)
+        except RuntimeError:
+            logger.error(f"Failed to get peak memory stats for device type: {self.device.type}")
+            info = {}
 
         max_active = info.get("active_bytes.all.peak", -1)
         max_reserved = info.get("reserved_bytes.all.peak", -1)

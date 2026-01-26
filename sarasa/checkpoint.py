@@ -1,6 +1,7 @@
 import enum
 import gc
 import time
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
@@ -39,11 +40,9 @@ class Checkpointer:
     ):
         self.config = config
         self.checkpoint_freq = config.checkpoint.save_freq
-        self.checkpoint_dir = config.output_dir / "checkpoints"
+        self.checkpoint_dir = Path(config.output_dir) / "checkpoints"
         self.async_mode = AsyncMode(config.checkpoint.async_mode)
-        if self.async_mode == AsyncMode.none:
-            raise NotImplementedError("Synchronous checkpointing is not implemented yet.")
-        else:
+        if self.async_mode != AsyncMode.none:
             self.pg = dist.new_group(backend="gloo")
 
         self.stager = None
@@ -55,6 +54,9 @@ class Checkpointer:
         self,
         step: int,
     ) -> None:
+        if step % self.checkpoint_freq != 0:
+            return
+
         begin = time.perf_counter()
         checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
 
