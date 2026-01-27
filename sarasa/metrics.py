@@ -9,6 +9,7 @@ from loguru import logger
 from torch._utils import _get_device_module
 
 from sarasa.config import Config
+from sarasa.utils import rank
 
 
 # ported from torchtitan
@@ -169,7 +170,7 @@ class MetricsProcessor:
         device: torch.device,
     ) -> None:
         self.logger = None
-        if config.metrics.use_tensorboard:
+        if rank() == 0 and config.metrics.use_tensorboard:
             log_dir = config.output_dir / "tensorboard" if config.output_dir else Path("./tensorboard")
             self.logger = TensorboardLogger(log_dir=log_dir)
 
