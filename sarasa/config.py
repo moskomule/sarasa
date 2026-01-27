@@ -167,11 +167,11 @@ class Config[
     debug: bool = False
     """ Enable debug mode with more verbose logging and checks."""
 
+    output_dir: Path = Path("./outputs")
+    """Directory to save checkpoints and logs."""
+
     config_file: str | None = None
     """Path to a config file (JSON or TOML) to load configuration from."""
-
-    output_dir: Path | None = None
-    """Directory to save checkpoints and logs."""
 
     def __post_init__(self):
         if self.output_dir is not None:
