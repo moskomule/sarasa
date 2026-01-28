@@ -45,7 +45,7 @@ class GarbageCollector:
             begin = time.perf_counter()
             gc.collect(generation=1)
             end = time.perf_counter()
-            logger.debug(f"Garbage collection at step {step} took {end - begin:.4f} seconds")
+            logger.info(f"Garbage collection at step {step} took {end - begin:.4f} seconds")
 
 
 # distributed utils

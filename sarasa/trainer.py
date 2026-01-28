@@ -104,6 +104,9 @@ class Trainer:
 
     @record
     def train(self):
+        logger.info("Starting training...")
+
+        self.model.train()
         with self.profile_context:
             data_iter = self.batch_generator(self.data_loader)
             for _ in range(self.config.train.steps):

@@ -26,6 +26,6 @@ if __name__ == "__main__":
         )
     else:
         # log to stderr only for rank 0
-        logger.add(sys.stderr, backtrace=True, diagnose=True, level="INFO" if rank == 0 else "WARNING")
+        logger.add(sys.stderr, backtrace=True, diagnose=True, level="INFO" if rank == 0 else "ERROR")
     trainer = Trainer(config)
     trainer.train()
