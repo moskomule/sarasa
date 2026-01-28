@@ -217,7 +217,7 @@ class MetricsProcessor:
         }
 
         log = (
-            f"[Step {step:>10}] loss: {global_avg_loss:.4f}, memory: {device_mem_stats.max_active_gib:.2f} GiB, "
+            f"[Step {step:>10}] loss: {global_avg_loss:.4f}, memory: {device_mem_stats.max_reserved_gib:.2f} GiB, "
             f"time(s): {time_ete:.2f}sec (data load ratio: {time_data_load_perc:.1f}%)"
         )
 

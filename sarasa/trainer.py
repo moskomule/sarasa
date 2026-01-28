@@ -83,6 +83,9 @@ class Trainer:
         self.metrics_processor = MetricsProcessor(config, self.device)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
 
+        dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
+        logger.info(f"{self.device.type} memory: {dev_mem_stats.max_reserved_gib:.2f} GiB for model initialization")
+
         self.step = 0
         self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")

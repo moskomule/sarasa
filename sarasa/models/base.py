@@ -1,5 +1,6 @@
 import abc
 
+import torch
 from torch import nn
 
 
@@ -9,6 +10,7 @@ class BaseModel(nn.Module, abc.ABC):
     blocks: list[nn.Module]  # TF blocks
 
     @abc.abstractmethod
+    @torch.no_grad()
     def init_weights(self) -> None:
         # Actual initialization of model weights
         pass

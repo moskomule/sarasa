@@ -51,7 +51,7 @@ class Checkpointer:
         self.stage_future = None
         self.model = model
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def save(
         self,
         step: int,
