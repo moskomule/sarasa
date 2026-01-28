@@ -40,7 +40,7 @@ class Datasets(enum.StrEnum):
             case Datasets.fineweb_edu_100b:
                 return load_dataset(
                     "HuggingFaceFW/fineweb-edu",
-                    name="sample-100b",
+                    name="sample-100BT",
                     split="train",
                     streaming=True,
                     cache_dir=cache_dir,
