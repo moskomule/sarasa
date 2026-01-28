@@ -23,7 +23,7 @@ class AdamWConfig:
         params = sum(param_groups.values(), [])
         optimizer = torch.optim.AdamW(
             params,
-            lr=self.lr,
+            lr=torch.tensor(self.lr, dtype=torch.float32),
             weight_decay=self.weight_decay,
             betas=self.betas,
             fused=True,

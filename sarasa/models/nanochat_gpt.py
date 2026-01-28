@@ -65,13 +65,14 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)  # QK rotary embedding
         q, k = rms_norm(q), rms_norm(k)  # QK norm
-        y = F.scaled_dot_product_attention(
-            q.transpose(1, 2),
-            k.transpose(1, 2),
-            v.transpose(1, 2),
-            is_causal=True,
-            enable_gqa=self.n_head != self.n_kv_head,
-        )
+        with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.FLASH_ATTENTION):
+            y = F.scaled_dot_product_attention(
+                q.transpose(1, 2),
+                k.transpose(1, 2),
+                v.transpose(1, 2),
+                is_causal=True,
+                enable_gqa=self.n_head != self.n_kv_head,
+            )
 
         # Re-assemble the heads side by side and project back to residual stream
         y = y.transpose(1, 2).contiguous().view(B, T, -1)

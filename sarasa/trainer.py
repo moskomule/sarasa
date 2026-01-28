@@ -65,10 +65,14 @@ class Trainer:
         self.model.to_empty(device=self.device)
         self.model.init_weights()
 
+        # todo: support other loss functions
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
+
         if config.train.compile:
             for block in self.model.blocks:
-                block.compile()
-            self.model.compile()
+                block.compile(fullgraph=True)
+            self.model.compile(dynamic=False)
+            self.loss_fn.compile()
             logger.info("Compiled the model")
 
         self.optimizer = self.config.optim.create(self.model)
@@ -78,9 +82,6 @@ class Trainer:
         # todo: configure num_flops_per_token
         self.metrics_processor = MetricsProcessor(config, self.device)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
-
-        # todo: support other loss functions
-        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
 
         self.step = 0
         self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
@@ -157,8 +158,10 @@ class Trainer:
 
         losses = []
         for input_dict, target in micro_batches:
-            input_dict = {k: v.to(self.device) for k, v in input_dict.items()}
-            target = target.to(self.device)
+            input_dict = {
+                k: v.to(self.device, non_blocking=(self.device.type == "cuda")) for k, v in input_dict.items()
+            }
+            target = target.to(self.device, non_blocking=(self.device.type == "cuda"))
 
             with self.amp_context:
                 pred = self.model(**input_dict)
