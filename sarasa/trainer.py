@@ -179,15 +179,18 @@ class Trainer:
             loss.backward()
             losses.append(loss.detach())
 
-        grad_norm = -1
+        grad_norm = torch.nn.utils.get_total_norm(self.model.parameters(), foreach=self.device.type == "cuda")
         if self.config.train.grad_clip is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(
+            torch.nn.utils.clip_grads_with_norm_(
                 self.model.parameters(),
                 self.config.train.grad_clip,
+                grad_norm,
                 foreach=self.device.type == "cuda",
             )
+
         if self.checkpointer is not None:
             self.checkpointer.wait_for_staging()
+
         self.optimizer.step()
         self.lr_scheduler.step()
 

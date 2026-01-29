@@ -44,7 +44,7 @@ class AdamH:
     rescale_to_unit_ball: bool = False
 
     adam_lr: float = lr
-    adam_betas: tuple[float, float] = (0.9, 0.95)
+    adam_betas: tuple[float, float] = betas
     adam_weight_decay: float = 0
 
     def create(
@@ -126,6 +126,8 @@ class MuonH:
     adam_betas: tuple[float, float] = (0.9, 0.95)
     adam_weight_decay: float = 0
 
+    adjust_lr_fn: Literal["original", "match_rms_adamw"] = "match_rms_adamw"
+
     def create(
         self,
         model: BaseModel,
@@ -139,6 +141,7 @@ class MuonH:
             lr=self.lr,
             momentum=self.momentum,
             rescale_to_unit_ball=self.rescale_to_unit_ball,
+            adjust_lr_fn=self.adjust_lr_fn,
         )
 
         adam = torch.optim.AdamW(

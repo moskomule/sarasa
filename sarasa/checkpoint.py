@@ -49,7 +49,8 @@ class Checkpointer:
         self.stager = None
         self.save_future = None
         self.stage_future = None
-        self.model = model
+
+        self.state = ModelWrapper(model)
 
     @torch.no_grad()
     def save(
@@ -63,12 +64,12 @@ class Checkpointer:
         checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
 
         # todo: save other states
-        state_dict = {"model": ModelWrapper(self.model)}
+        state_dict = self.state.state_dict()
 
         if self.async_mode == AsyncMode.default:
+            gc.collect(1)
             if self.save_future is not None:
                 self.save_future.result()
-            gc.collect(1)
             self.save_future = dcp.async_save(
                 state_dict,
                 storage_writer=None,
@@ -77,6 +78,7 @@ class Checkpointer:
             )
             gc.collect(1)
         elif self.async_mode == AsyncMode.mem_pinned:
+            gc.collect(1)
             if self.save_future is not None:
                 self.save_future.result()
             if self.stager is None:
