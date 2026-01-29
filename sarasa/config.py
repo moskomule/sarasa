@@ -13,7 +13,7 @@ Users can define their own configuration dataclasses and pass them to Config.fro
 """
 from sarasa.data import DataConfig as Data  # noqa
 from sarasa.models import ModelConfig as Model  # noqa
-from sarasa.optimizers import AdamWConfig as AdamW  # noqa
+from sarasa.optimizers import AdamW  # noqa
 
 
 @dataclasses.dataclass
