@@ -92,7 +92,7 @@ class Train:
 
     compile: bool = False
 
-    gc_freq: int = 10
+    gc_freq: int = 50
     """Garbage collection frequency (in steps). If -1, no periodic GC is performed."""
 
     local_batch_size: int = 32
@@ -147,12 +147,7 @@ class FSDP(Distributed):
 
 
 @dataclasses.dataclass
-class Config[
-    ModelT = Model,
-    OptimizerT = AdamW,
-    LRSchedulerT = LRScheduler,
-    DataT = Data,
-]:
+class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
     # variable components
     model: ModelT
     optim: OptimizerT
@@ -169,10 +164,10 @@ class Config[
     debug: bool = False
     """ Enable debug mode with more verbose logging and checks."""
 
-    output_dir: Path = Path("./outputs")
+    output_dir: Path | str = Path("./outputs")
     """Directory to save checkpoints and logs."""
 
-    config_file: str | None = None
+    config_file: Path | str | None = None
     """Path to a config file (JSON or TOML) to load configuration from."""
 
     def __post_init__(self):
@@ -184,6 +179,23 @@ class Config[
                 self.model.seq_len = self.data.seq_len
             else:
                 raise ValueError("Either model.seq_len or data.seq_len must be set.")
+
+    @classmethod
+    def create(
+        cls,
+        model: ModelT,
+        optim: OptimizerT,
+        lr_scheduler: LRSchedulerT,
+        data: DataT,
+        **kwargs,
+    ) -> Config:
+        return cls(
+            model=model,
+            optim=optim,
+            lr_scheduler=lr_scheduler,
+            data=data,
+            **kwargs,
+        )
 
     @classmethod
     def from_cli(

@@ -10,10 +10,10 @@ from sarasa.data.tokenizer import HFTokenizerWrapper
 
 @dataclasses.dataclass
 class DataConfig:
-    dataset: Datasets | str = Datasets.fineweb_edu_100b
+    dataset: Datasets = Datasets.fineweb_edu_100b
     """Dataset to use for training. Can be a predefined dataset or a custom dataset path."""
 
-    tokenizer_path: Path = Path("./tokenizer")
+    tokenizer_path: Path | str = Path("./tokenizer")
     """Path to `tokenizer.json` and `tokenizer_config.json` files."""
 
     seq_len: int = 2048

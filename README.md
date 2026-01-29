@@ -53,15 +53,22 @@ if __name__ == "__main__":
 It's very simple. IDE autocompletion will help you.
 
 ```python
-from sarasa.config import Config, Data, LRScheduler, Model, Train
+from sarasa.config import Config, Data, LRScheduler, Model, Train, LRScheduler
+from custom_optim import CustomOptimConfig
 
 # only one Config instance should be defined in each config file
-config = Config(
+config = Config.create(
     model=Model(num_layers=12),
     train=Train(
         local_batch_size=16,
         global_batch_size=256,
         dtype="bfloat16",
+    ),
+    optim=CustomOptimConfig(lr=0.001),
+    lr_scheduler=LRScheduler(
+        decay_type="linear",
+        warmup_steps=1000,
+        total_steps=100000,
     ),
     data=Data(tokenizer_path="./tokenizer"),
     seed=12,
