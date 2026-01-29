@@ -225,8 +225,12 @@ class Config[
                 raise ValueError(f"Multiple Config instances found in {config_file}. Please keep only one.")
             else:
                 loaded_config = configs[0]
+                print(loaded_config)
 
-        return tyro.cli(cls[model_type, optim_type, lr_scheduler_type, data_type], default=loaded_config)
+        return tyro.cli(
+            cls[model_type, optim_type, lr_scheduler_type, data_type],
+            default=loaded_config,
+        )
 
 
 __all__ = [
