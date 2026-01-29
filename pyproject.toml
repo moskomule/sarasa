@@ -25,6 +25,14 @@ dev = [
     "ruff>=0.14.14",
 ]
 
+[project.optional-dependencies]
+cpu = [
+  "torch>=2.10.0",
+]
+cu130 = [
+  "torch>=2.10.0",
+]
+
 [tool.uv]
 conflicts = [
   [
