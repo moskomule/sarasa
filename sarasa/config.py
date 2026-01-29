@@ -163,7 +163,7 @@ class Config[
     train: Train
     metrics: Metrics
     checkpoint: Checkpoint
-    distributed: DDP | FSDP = DDP()
+    distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
 
     seed: int = 0
     debug: bool = False
