@@ -111,6 +111,8 @@ def init_distributed(
             timeout=timedelta(seconds=init_timeout_seconds),
         )
         logger.info("Initialized distributed process group")
+    else:
+        logger.info("Skipping distributed initialization")
 
 
 def update_timeout(
