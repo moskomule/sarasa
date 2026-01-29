@@ -154,16 +154,16 @@ class Config[
     DataT = Data,
 ]:
     # variable components
-    model: ModelT = dataclasses.field(default_factory=Model)
-    optim: OptimizerT = dataclasses.field(default_factory=AdamW)
-    data: DataT = dataclasses.field(default_factory=Data)
-    lr_scheduler: LRSchedulerT = dataclasses.field(default_factory=LRScheduler)
+    model: ModelT
+    optim: OptimizerT
+    data: DataT
+    lr_scheduler: LRSchedulerT
 
     # static components
-    train: Train = dataclasses.field(default_factory=Train)
-    metrics: Metrics = dataclasses.field(default_factory=Metrics)
-    checkpoint: Checkpoint = dataclasses.field(default_factory=Checkpoint)
-    distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
+    train: Train
+    metrics: Metrics
+    checkpoint: Checkpoint
+    distributed: DDP | FSDP
 
     seed: int = 0
     debug: bool = False

@@ -35,7 +35,7 @@ def test_config_complex_custom_model_type(monkeypatch):
 @pytest.fixture
 def config_py(num_configs) -> str:
     file = pathlib.Path("config.py")
-    lines = ["from sarasa import Config, Checkpoint"]
+    lines = ["from sarasa.config import Config, Checkpoint"]
     for i in range(num_configs):
         lines.append(f"config{i} = Config(checkpoint=Checkpoint(save_freq=10))")
     with open(file, "w") as f:
