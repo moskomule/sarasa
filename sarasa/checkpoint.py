@@ -44,7 +44,7 @@ class Checkpointer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.async_mode = AsyncMode(config.checkpoint.async_mode)
         if self.async_mode != AsyncMode.none:
-            self.pg = dist.new_group(backend="gloo")
+            self.pg = dist.new_group(backend="gloo") if dist.is_initialized() else None
 
         self.stager = None
         self.save_future = None
