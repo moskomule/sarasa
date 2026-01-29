@@ -1,5 +1,4 @@
 import dataclasses
-import json
 import pathlib
 import sys
 
@@ -34,21 +33,40 @@ def test_config_complex_custom_model_type(monkeypatch):
 
 
 @pytest.fixture
-def config_json() -> str:
-    file = pathlib.Path("config.json")
+def config_py(num_configs) -> str:
+    file = pathlib.Path("config.py")
+    lines = ["from sarasa import Config, Checkpoint"]
+    for i in range(num_configs):
+        lines.append(f"config{i} = Config(checkpoint=Checkpoint(save_freq=10))")
     with open(file, "w") as f:
-        json.dump({"checkpoint": {"save_freq": 10}}, f)
+        f.write("\n".join(lines))
     yield str(file)
     file.unlink()
 
 
-def test_config_overriding(config_json, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_json])
+@pytest.mark.parametrize("num_configs", [1])
+def test_config_loading(config_py, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py])
     cfg = Config.from_cli()
     assert cfg.checkpoint.save_freq == 10
 
 
-def test_config_overriding_cli(config_json, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_json, "--checkpoint.save_freq", "20"])
+@pytest.mark.parametrize("num_configs", [1])
+def test_config_loading_overriding(config_py, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py, "--checkpoint.save_freq", "100"])
     cfg = Config.from_cli()
-    assert cfg.checkpoint.save_freq == 20
+    assert cfg.checkpoint.save_freq == 100
+
+
+@pytest.mark.parametrize("num_configs", [0, 2])
+def test_config_loading_content_error(config_py, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py])
+    with pytest.raises(ValueError):
+        Config.from_cli()
+
+
+def test_config_loading_filetype_error(monkeypatch, tmp_path):
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(sys, "argv", ["program", "--config_file", str(config_file)])
+    with pytest.raises(ValueError):
+        Config.from_cli()

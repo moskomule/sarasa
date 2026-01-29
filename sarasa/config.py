@@ -1,6 +1,5 @@
 import dataclasses
 import sys
-import typing
 from pathlib import Path
 from typing import Literal
 
@@ -154,14 +153,17 @@ class Config[
     LRSchedulerT = LRScheduler,
     DataT = Data,
 ]:
-    train: Train
-    model: ModelT
-    optim: OptimizerT
-    data: DataT
-    lr_scheduler: LRSchedulerT
-    metrics: Metrics
-    checkpoint: Checkpoint
-    distributed: DDP | FSDP
+    # variable components
+    model: ModelT = dataclasses.field(default_factory=Model)
+    optim: OptimizerT = dataclasses.field(default_factory=AdamW)
+    data: DataT = dataclasses.field(default_factory=Data)
+    lr_scheduler: LRSchedulerT = dataclasses.field(default_factory=LRScheduler)
+
+    # static components
+    train: Train = dataclasses.field(default_factory=Train)
+    metrics: Metrics = dataclasses.field(default_factory=Metrics)
+    checkpoint: Checkpoint = dataclasses.field(default_factory=Checkpoint)
+    distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
 
     seed: int = 0
     debug: bool = False
@@ -199,6 +201,8 @@ class Config[
         *_type can be used to specify custom dataclass types for each section
         >> config = Config.from_cli(optim_type=CustomOptimizerConfig)
         """
+        import importlib
+
         import tyro
 
         loaded_config = None
@@ -209,41 +213,31 @@ class Config[
 
             if not config_file.exists():
                 raise FileNotFoundError(f"Config file {config_file} does not exist.")
-            if config_file.suffix == ".json":
-                with config_file.open() as f:
-                    import json
 
-                    loaded_config = json.load(f)
-            elif config_file.suffix == ".toml":
-                with config_file.open("rb") as f:
-                    import tomllib
+            if config_file.suffix != ".py":
+                raise ValueError("Only Python config files are supported in this method.")
 
-                    loaded_config = tomllib.load(f)
+            configs = importlib.import_module(str(config_file.parent / config_file.stem).replace("/", "."))
+            configs = [config for config in configs.__dict__.values() if isinstance(config, cls)]
+            if len(configs) == 0:
+                raise ValueError(f"No Config instance found in {config_file}.")
+            elif len(configs) > 1:
+                raise ValueError(f"Multiple Config instances found in {config_file}. Please keep only one.")
             else:
-                raise ValueError("Config file must be a .json or .toml file")
-
-            types = typing.get_type_hints(cls)
-            types.update({
-                "model": model_type,
-                "optim": optim_type,
-                "lr_scheduler": lr_scheduler_type,
-                "data": data_type,
-            })
-
-            updates = {}
-            for field in dataclasses.fields(cls):
-                if field.name in loaded_config:
-                    updates[field.name] = types[field.name](**loaded_config[field.name])
-                else:
-                    dc = types[field.name]
-                    if typing.get_origin(dc) is typing.Union:
-                        dc = typing.get_args(dc)[0]  # take the first type in the Union
-
-                    if dataclasses.is_dataclass(dc):
-                        updates[field.name] = dc()
-                    else:
-                        updates[field.name] = field.default
-
-            loaded_config = cls(**updates)
+                loaded_config = configs[0]
 
         return tyro.cli(cls[model_type, optim_type, lr_scheduler_type, data_type], default=loaded_config)
+
+
+__all__ = [
+    "Config",
+    "Model",
+    "AdamW",
+    "LRScheduler",
+    "Data",
+    "Train",
+    "Metrics",
+    "Checkpoint",
+    "DDP",
+    "FSDP",
+]

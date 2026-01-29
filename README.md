@@ -18,7 +18,7 @@ uv add git+https://github.com/moskomule/sarasa.git
 
 ```bash
 uv run torchrun --nproc_per_node="gpu" main.py\
-[--config-file /path/to/config.yaml]\ # config file is optional
+[--config-file /path/to/config.py]\ # config file is optional
 [--seed 42] [--train.steps 1000] # override config values from command line
 ```
 
@@ -46,6 +46,26 @@ if __name__ == "__main__":
     config = Config.from_cli(optim=CustomOptimConfig)
     trainer = Trainer(config)
     trainer.train()
+```
+
+### Config File Example
+
+It's very simple. IDE autocompletion will help you.
+
+```python
+from sarasa.config import Config, Data, LRScheduler, Model, Train
+
+# only one Config instance should be defined in each config file
+config = Config(
+    model=Model(num_layers=12),
+    train=Train(
+        local_batch_size=16,
+        global_batch_size=256,
+        dtype="bfloat16",
+    ),
+    data=Data(tokenizer_path="./tokenizer"),
+    seed=12,
+)
 ```
 
 ## Acknowledgements
