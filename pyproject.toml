@@ -11,7 +11,6 @@ requires-python = ">=3.14"
 dependencies = [
     "datasets>=4.5.0",
     "loguru>=0.7.3",
-    "muon",
     "numpy>=2.4.1",
     "rich>=14.2.0",
     "tensorboard>=2.20.0",
@@ -51,7 +50,6 @@ torch = [
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
 ]
-muon = { git = "https://github.com/moskomule/muon.git" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
