@@ -1,5 +1,4 @@
 import dataclasses
-import pathlib
 import sys
 
 import pytest
@@ -7,7 +6,9 @@ import pytest
 from sarasa import Config
 
 
-def test_config_custom_model_type():
+def test_config_custom_model_type(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["program"])  # avoid checking actual sys.argv
+
     @dataclasses.dataclass
     class CustomModelConfig:
         param: int = 42
@@ -33,15 +34,16 @@ def test_config_complex_custom_model_type(monkeypatch):
 
 
 @pytest.fixture
-def config_py(num_configs) -> str:
-    file = pathlib.Path("config.py")
-    lines = ["from sarasa.config import Config, Checkpoint"]
+def config_py(tmp_path, num_configs) -> str:
+    file = tmp_path / "config.py"
+    lines = ["from sarasa.config import *"]
     for i in range(num_configs):
-        lines.append(f"config{i} = Config(checkpoint=Checkpoint(save_freq=10))")
+        lines.append(
+            f"config{i} = Config(Model(), AdamW(), LRScheduler(), Data(), checkpoint=Checkpoint(save_freq=10))"
+        )
     with open(file, "w") as f:
         f.write("\n".join(lines))
     yield str(file)
-    file.unlink()
 
 
 @pytest.mark.parametrize("num_configs", [1])
@@ -67,6 +69,7 @@ def test_config_loading_content_error(config_py, monkeypatch):
 
 def test_config_loading_filetype_error(monkeypatch, tmp_path):
     config_file = tmp_path / "config.json"
+    config_file.write_text("{}")
     monkeypatch.setattr(sys, "argv", ["program", "--config_file", str(config_file)])
     with pytest.raises(ValueError):
         Config.from_cli()

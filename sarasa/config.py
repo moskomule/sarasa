@@ -154,10 +154,10 @@ class Config[
     DataT = Data,
 ]:
     # variable components
-    model: ModelT = dataclasses.field(default_factory=Model)
-    optim: OptimizerT = dataclasses.field(default_factory=AdamW)
-    data: DataT = dataclasses.field(default_factory=Data)
-    lr_scheduler: LRSchedulerT = dataclasses.field(default_factory=LRScheduler)
+    model: ModelT
+    optim: OptimizerT
+    lr_scheduler: LRSchedulerT
+    data: DataT
 
     # static components
     train: Train = dataclasses.field(default_factory=Train)
@@ -201,7 +201,8 @@ class Config[
         *_type can be used to specify custom dataclass types for each section
         >> config = Config.from_cli(optim_type=CustomOptimizerConfig)
         """
-        import importlib
+
+        import importlib.util
 
         import tyro
 
@@ -217,18 +218,28 @@ class Config[
             if config_file.suffix != ".py":
                 raise ValueError("Only Python config files are supported in this method.")
 
-            configs = importlib.import_module(str(config_file.parent / config_file.stem).replace("/", "."))
-            configs = [config for config in configs.__dict__.values() if isinstance(config, cls)]
+            spec = importlib.util.spec_from_file_location("custom_config", config_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            configs = [
+                config
+                for config in module.__dict__.values()
+                if isinstance(config, cls) and not isinstance(config, type)
+            ]
             if len(configs) == 0:
                 raise ValueError(f"No Config instance found in {config_file}.")
             elif len(configs) > 1:
                 raise ValueError(f"Multiple Config instances found in {config_file}. Please keep only one.")
             else:
                 loaded_config = configs[0]
-                print(loaded_config)
 
         return tyro.cli(
-            cls[model_type, optim_type, lr_scheduler_type, data_type],
+            cls[
+                model_type,
+                optim_type,
+                lr_scheduler_type,
+                data_type,
+            ],
             default=loaded_config,
         )
 
