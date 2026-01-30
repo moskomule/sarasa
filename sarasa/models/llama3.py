@@ -1,15 +1,11 @@
-import typing
-
 import torch
 from torch import nn
 from torch.nn import functional as F
 
+from sarasa.models import ModelConfig
 from sarasa.models.attention import CausalSelfAttention
 from sarasa.models.base import BaseModel
 from sarasa.models.utils import RMSNorm, RoPE
-
-if typing.TYPE_CHECKING:
-    from sarasa.models import ModelConfig
 
 
 class MLP(nn.Module):
@@ -42,7 +38,9 @@ class Block(nn.Module):
         multiple_of: int,
         ffn_dim_multiplier: float | None,
     ):
-        self.attention = CausalSelfAttention(config, layer_idx)
+        super().__init__()
+        self.layer_idx = layer_idx
+        self.attention = CausalSelfAttention(config)
         self.mlp = MLP(config, multiple_of, ffn_dim_multiplier)
         self.norm = RMSNorm(config.hidden_dim)
 
@@ -64,9 +62,8 @@ class Llama3(BaseModel):
         ffn_dim_multiplier: float | None = None,
     ):
         super().__init__()
-
         self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
-        self.max_seq_len = config.seq_len * 10
+        self.max_seq_len = config.seq_len * 16
         self.head_dim = config.head_dim
         cos, sin = RoPE.precompute(self.max_seq_len, config.head_dim)
         self.register_buffer("cos", cos, persistent=False)
@@ -116,10 +113,13 @@ class Llama3(BaseModel):
             "lm_head": lm_head_params,
         }
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        input: torch.Tensor,
+    ) -> torch.Tensor:
         B, T = input.size()
         x = self.token_emb(input)  # (B, T, C)
-        cos_sin = (self.cos[:T, :], self.sin[:T, :])
+        cos_sin = self.cos[:, :T], self.sin[:, :T]
 
         for block in self.blocks:
             x = block(x, cos_sin)

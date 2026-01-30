@@ -1,18 +1,15 @@
 # NanoChat's GPT model, adapted from https://github.com/karpathy/nanochat
 
-import typing
 
 import torch
 from loguru import logger
 from torch import nn
 from torch.nn import functional as F
 
+from sarasa.models import ModelConfig
 from sarasa.models.attention import CausalSelfAttention
 from sarasa.models.base import BaseModel
-from sarasa.models.utils import RoPE, RMSNorm
-
-if typing.TYPE_CHECKING:
-    from sarasa.models import ModelConfig
+from sarasa.models.utils import RMSNorm, RoPE
 
 
 class MLP(nn.Module):
@@ -90,7 +87,7 @@ class GPT(BaseModel):
         # As for rotary_seq_len, these rotary embeddings are pretty small/cheap in memory,
         # so let's just over-compute them by 10X, but assert fail if we ever reach that amount.
         # In the future we can dynamically grow the cache, for now it's fine.
-        self.rotary_seq_len = self.seq_len * 10  # 10X over-compute should be enough, TODO make nicer?
+        self.rotary_seq_len = self.seq_len * 16  # 10X over-compute should be enough, TODO make nicer?
         cos, sin = RoPE.precompute(self.rotary_seq_len, config.head_dim)
         self.register_buffer("cos", cos, persistent=False)  # persistent=False means it's not saved to the checkpoint
         self.register_buffer("sin", sin, persistent=False)

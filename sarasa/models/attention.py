@@ -1,13 +1,9 @@
-import typing
-
 import torch
 from torch import nn
 from torch.nn import functional as F
 
+from sarasa.models import ModelConfig
 from sarasa.models.utils import RMSNorm, RoPE
-
-if typing.TYPE_CHECKING:
-    from sarasa.models import ModelConfig
 
 
 class SDPAttention(nn.Module):
@@ -49,7 +45,7 @@ class CausalSelfAttention(nn.Module):
     def __init__(
         self,
         config: ModelConfig,
-        layer_idx: int,
+        layer_idx: int | None = None,
     ):
         super().__init__()
         self.layer_idx = layer_idx
@@ -79,7 +75,8 @@ class CausalSelfAttention(nn.Module):
         v = self.c_v(x).view(B, T, self.num_kv_heads, self.head_dim)
 
         # Apply Rotary Embeddings to queries and keys to get relative positional encoding
-        q, k = RoPE.apply(q, *cos_sin), RoPE.apply(k, *cos_sin)
+        cos, sin = cos_sin
+        q, k = RoPE.apply(q, cos, sin), RoPE.apply(k, cos, sin)
         q, k = self.qk_norm(q), self.qk_norm(k)
         y = self.attn(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2))  # (B, n_head, T, head_dim)
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
