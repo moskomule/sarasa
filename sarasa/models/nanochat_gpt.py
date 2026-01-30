@@ -22,8 +22,7 @@ def apply_rotary_emb(
     sin: torch.Tensor,
 ) -> torch.Tensor:
     assert x.ndim == 4  # multihead attention
-    d = x.shape[3] // 2
-    x1, x2 = x[..., :d], x[..., d:]  # split up last dim into two halves
+    x1, x2 = x.chunk(2, dim=-1)  # split last dim into two halves
     y1 = x1 * cos + x2 * sin  # rotate pairs of dims
     y2 = x1 * (-sin) + x2 * cos
     return torch.cat([y1, y2], 3)
@@ -67,7 +66,7 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)  # QK rotary embedding
         q, k = rms_norm(q), rms_norm(k)  # QK norm
-        y = self.attn(q, k, v)  # (B, n_head, T, head_dim)
+        y = self.attn(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2))  # (B, n_head, T, head_dim)
 
         # Re-assemble the heads side by side and project back to residual stream
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
@@ -227,9 +226,6 @@ class GPT(BaseModel):
         cos, sin = cos.bfloat16(), sin.bfloat16()  # keep them in bfloat16
         cos, sin = cos[None, :, None, :], sin[None, :, None, :]  # add batch and head dims for later broadcasting
         return cos, sin
-
-    def get_device(self):
-        return self.transformer.wte.weight.device
 
     def estimate_flops(self):
         """
