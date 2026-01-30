@@ -6,6 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from sarasa.models.base import BaseModel
+from sarasa.models.utils import SDPAttention
 
 
 def rms_norm(
@@ -48,6 +49,7 @@ class CausalSelfAttention(nn.Module):
         self.c_k = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
+        self.attn = SDPAttention(is_causal=True, enable_gqa=self.n_head != self.n_kv_head)
 
     def forward(
         self,
@@ -65,14 +67,7 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)  # QK rotary embedding
         q, k = rms_norm(q), rms_norm(k)  # QK norm
-        with torch.nn.attention.sdpa_kernel(torch.nn.attention.SDPBackend.FLASH_ATTENTION):
-            y = F.scaled_dot_product_attention(
-                q.transpose(1, 2),
-                k.transpose(1, 2),
-                v.transpose(1, 2),
-                is_causal=True,
-                enable_gqa=self.n_head != self.n_kv_head,
-            )
+        y = self.attn(q, k, v)  # (B, n_head, T, head_dim)
 
         # Re-assemble the heads side by side and project back to residual stream
         y = y.transpose(1, 2).contiguous().view(B, T, -1)

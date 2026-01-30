@@ -7,7 +7,7 @@ name = "sarasa"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "datasets>=4.5.0",
     "loguru>=0.7.3",
@@ -34,6 +34,9 @@ cu128 = [
 cu130 = [
   "torch>=2.10.0",
 ]
+flash_attn = [
+  "flash-attn-cute",
+]
 
 [tool.uv]
 conflicts = [
@@ -50,6 +53,7 @@ torch = [
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
 ]
+flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

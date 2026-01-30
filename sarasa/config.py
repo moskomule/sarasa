@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import sys
 from pathlib import Path
@@ -103,6 +105,9 @@ class Train:
     global (across all devices) batch size, used to compute 
     grad_accum_steps = global_batch_size // (local_batch_size * num_devices)
     """
+
+    use_fa4: bool = False
+    """Whether to use FA4 flash attention if available."""
 
     val_freq: int = -1
     """Validation frequency (in steps). If -1, no validation is performed."""

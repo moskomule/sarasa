@@ -99,6 +99,15 @@ class Trainer:
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
 
+        if config.train.use_fa4:
+            logger.info("Using FA4 flash attention")
+            try:
+                torch.nn.attention.activate_flash_attention_impl("FA4")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to activate FA4 flash attention: {e}. Install sarasa with flash-attn-cute extra for better performance."
+                )
+
     def __del__(self) -> None:
         # cleanup distributed
         if world_size() > 1:
