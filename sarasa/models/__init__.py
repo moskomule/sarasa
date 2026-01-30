@@ -40,15 +40,15 @@ class ModelConfig:
                 if not self.qk_norm:
                     logger.warning("nanochat_gpt model without qk_norm is not recommended")
 
-                return GPT(
-                    num_layers=self.num_layers,
-                    head_dim=self.head_dim,
-                    hidden_dim=self.hidden_dim,
-                    vocab_size=self.vocab_size,
-                    seq_len=self.seq_len,
-                    num_heads=self.num_heads,
-                    num_kv_heads=self.num_kv_heads,
-                )
+                return GPT(self)
+
+            case "llama3":
+                from .llama3 import Llama3
+
+                if self.qk_norm:
+                    logger.warning("llama3 model with qk_norm is not standard")
+
+                return Llama3(self)
 
             case _:
                 raise ValueError(f"Unknown model name: {self.name}")

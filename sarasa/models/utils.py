@@ -1,6 +1,15 @@
 import torch
 
 
+class RMSNorm(torch.nn.RMSNorm):
+    # RMSNorm without affine parameters
+    def __init__(
+        self,
+        normalized_shape: int,
+    ):
+        super().__init__(normalized_shape, eps=None, elementwise_affine=False)
+
+
 class RoPE:
     @staticmethod
     def precompute(

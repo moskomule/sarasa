@@ -9,7 +9,7 @@ from torch.nn import functional as F
 
 from sarasa.models.attention import CausalSelfAttention
 from sarasa.models.base import BaseModel
-from sarasa.models.utils import RoPE
+from sarasa.models.utils import RoPE, RMSNorm
 
 if typing.TYPE_CHECKING:
     from sarasa.models import ModelConfig
@@ -40,7 +40,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn = CausalSelfAttention(config, layer_idx)
         self.mlp = MLP(config)
-        self.norm = nn.RMSNorm(config.hidden_dim)
+        self.norm = RMSNorm(config.hidden_dim)
 
     def forward(
         self,
@@ -76,10 +76,10 @@ class GPT(BaseModel):
             logger.warning(
                 f"Padding vocab_size from {self.vocab_size} to {padded_vocab_size} to be divisible by {pad_vocab_size_to}"
             )
-        self.emb = nn.Embedding(padded_vocab_size, self.hidden_dim)
+        self.token_emb = nn.Embedding(padded_vocab_size, self.hidden_dim)
         self.blocks = nn.ModuleList([Block(config, layer_idx) for layer_idx in range(self.num_layers)])
         self.lm_head = nn.Linear(self.hidden_dim, padded_vocab_size, bias=False)
-        self.norm = nn.RMSNorm(self.hidden_dim)
+        self.norm = RMSNorm(self.hidden_dim)
         # Per-layer learnable scalars (inspired by modded-nanogpt)
         # resid_lambdas: scales the residual stream at each layer (init 1.0 = neutral)
         # x0_lambdas: blends initial embedding back in at each layer (init 0.0 = disabled)
@@ -112,7 +112,7 @@ class GPT(BaseModel):
         """
 
         # Embedding and unembedding
-        torch.nn.init.normal_(self.emb.weight, mean=0.0, std=1.0)
+        torch.nn.init.normal_(self.token_emb.weight, mean=0.0, std=1.0)
         torch.nn.init.normal_(self.lm_head.weight, mean=0.0, std=0.001)
 
         # Transformer blocks: uniform init with bound = sqrt(3) * std (same standard deviation as normal)
@@ -135,15 +135,15 @@ class GPT(BaseModel):
         self.cos, self.sin = RoPE.precompute(self.rotary_seq_len, head_dim, device=self.cos.device)
 
         # Cast token embeddings to bf16: optimizer can tolerate it and it saves memory
-        if self.emb.weight.device.type == "cuda":
-            self.emb.to(dtype=torch.bfloat16)
+        if self.token_emb.weight.device.type == "cuda":
+            self.token_emb.to(dtype=torch.bfloat16)
 
     def param_groups(
         self,
     ) -> dict[str, list[torch.nn.Parameter]]:
         # Separate out all parameters into 5 groups (matrix, embedding, lm_head, resid_lambdas, x0_lambdas)
         matrix_params = list(self.blocks.parameters())
-        embedding_params = list(self.emb.parameters())
+        embedding_params = list(self.token_emb.parameters())
         lm_head_params = list(self.lm_head.parameters())
         resid_params = [self.resid_lambdas]
         x0_params = [self.x0_lambdas]
@@ -177,7 +177,7 @@ class GPT(BaseModel):
         cos_sin = self.cos[:, :T], self.sin[:, :T]  # truncate cache to current sequence length
 
         # Forward the trunk of the Transformer
-        x = self.emb(input)
+        x = self.token_emb(input)
         x = self.norm(x)
         x0 = x  # save initial normalized embedding for x0 residual
         for block, resid_lambda, x0_lambda in zip(self.blocks, self.resid_lambdas, self.x0_lambdas):
