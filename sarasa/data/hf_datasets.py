@@ -2,7 +2,7 @@ import enum
 from typing import Any, Callable
 
 import torch
-from datasets import load_dataset
+from datasets import disable_progress_bars, load_dataset
 from datasets.distributed import split_dataset_by_node
 from loguru import logger
 from torch.utils.data import IterableDataset
@@ -65,6 +65,8 @@ class HFTextDataset(IterableDataset):
         infinite: bool = True,
         cache_dir: str | None = None,
     ):
+        if rank() != 0:
+            disable_progress_bars()
         self.dataset_name = dataset_name
         if dataset_name in Datasets:
             ds = Datasets(dataset_name).load(cache_dir=cache_dir)

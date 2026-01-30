@@ -27,6 +27,7 @@ class ModelConfig:
 
         # sanity checks
         assert self.hidden_dim % self.head_dim == 0
+        assert self.head_dim * self.num_heads == self.hidden_dim
         assert self.num_kv_heads <= self.num_heads and self.num_heads % self.num_kv_heads == 0
 
     def create(self) -> BaseModel:

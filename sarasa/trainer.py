@@ -8,6 +8,7 @@ import torch.distributed as dist
 from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
 
+from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
 from sarasa.metrics import MetricsProcessor
@@ -47,12 +48,28 @@ class Trainer:
         vocab_size = len(self.tokenizer)
         self.config.model.vocab_size = vocab_size
 
+        # todo: support other loss functions
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
+
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
             logger.info(
                 f"Model created with {sum(p.numel() for p in self.model.parameters() if p.requires_grad) / 1e6:.2f}M parameters"
             )
+
+        # following torchtitan, (S)AC -> compilation -> distributed wrapping
+        if config.train.use_sac:
+            logger.info("Applying Selective Activation Checkpointing (SAC)")
+            for i, block in enumerate(self.model.blocks):
+                self.model.blocks[i] = apply_op_sac(block)
+
+        if config.train.compile:
+            logger.info("Compiling the model")
+            for block in self.model.blocks:
+                block.compile(fullgraph=True)
+            self.model.compile(dynamic=False)
+            self.loss_fn.compile()
 
         if world_size() > 1:
             apply_distributed(
@@ -64,16 +81,6 @@ class Trainer:
 
         self.model.to_empty(device=self.device)
         self.model.init_weights()
-
-        # todo: support other loss functions
-        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
-
-        if config.train.compile:
-            for block in self.model.blocks:
-                block.compile(fullgraph=True)
-            self.model.compile(dynamic=False)
-            self.loss_fn.compile()
-            logger.info("Compiled the model")
 
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
@@ -188,13 +195,9 @@ class Trainer:
             loss.backward()
             losses.append(loss.detach())
 
-        grad_norm = torch.nn.utils.get_total_norm(self.model.parameters(), foreach=self.device.type == "cuda")
         if self.config.train.grad_clip is not None:
-            torch.nn.utils.clip_grads_with_norm_(
-                self.model.parameters(),
-                self.config.train.grad_clip,
-                grad_norm,
-                foreach=self.device.type == "cuda",
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.config.train.grad_clip, foreach=self.device.type == "cuda"
             )
 
         if self.checkpointer is not None:
@@ -215,6 +218,9 @@ class Trainer:
             dist.all_reduce(max_loss, op=dist.ReduceOp.MAX)
         else:
             avg_loss = max_loss = loss
+
+        with torch.no_grad():
+            grad_norm = torch.nn.utils.get_total_norm(self.model.parameters(), foreach=self.device.type == "cuda")
 
         lr = self.lr_scheduler.get_last_lr()[0]
         self.metrics_processor.log(

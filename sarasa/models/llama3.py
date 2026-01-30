@@ -58,8 +58,8 @@ class Llama3(BaseModel):
     def __init__(
         self,
         config: ModelConfig,
-        multiple_of: int = 256,
-        ffn_dim_multiplier: float | None = None,
+        multiple_of: int = 1024,
+        ffn_dim_multiplier: float | None = 1.4,
     ):
         super().__init__()
         self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
