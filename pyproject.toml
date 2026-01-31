@@ -23,6 +23,12 @@ dependencies = [
 source = "uv-dynamic-versioning"
 
 [tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "pep440"
+dirty = false
+
+[tool.uv-dynamic-versioning]
 serialize_pep440 = true
 
 [dependency-groups]
