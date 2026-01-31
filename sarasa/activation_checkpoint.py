@@ -48,7 +48,7 @@ def _op_sac_policy(
                     return CheckpointPolicy.PREFER_RECOMPUTE
                 meta[key] += 1
 
-            # save ops in save list, except every nth op
+            # save ops in save list, except every nth mm op
             must_save = (func in ops_to_save) and not (
                 func == torch.ops.aten.mm.default and (meta[key] % every_nth_mm == 0)
             )
