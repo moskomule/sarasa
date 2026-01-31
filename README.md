@@ -11,7 +11,7 @@ uv sync [--extra cpu|cu128|cu130] [--extra flash_attn]
 or
 
 ```bash
-uv add git+https://github.com/moskomule/sarasa.git
+uv add sarasa[cpu|cu128|cu130]
 ```
 
 ## Features
