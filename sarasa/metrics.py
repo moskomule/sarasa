@@ -140,7 +140,25 @@ class DeviceMemoryMonitor:
         )
 
 
-class TensorboardLogger:
+class BaseReporter:
+    def config(
+        self,
+        config: dict[str, Any],
+    ) -> None:
+        raise NotImplementedError()
+
+    def log(
+        self,
+        metrics: dict[str, Any],
+        step: int,
+    ) -> None:
+        raise NotImplementedError()
+
+    def close(self) -> None:
+        raise NotImplementedError()
+
+
+class TensorboardReporter(BaseReporter):
     def __init__(
         self,
         log_dir: Path,
@@ -149,11 +167,18 @@ class TensorboardLogger:
 
         self.writer = SummaryWriter(log_dir=log_dir, max_queue=1000)
 
-        logger.info(f"Initialized TensorBoard logger at {log_dir}")
+        logger.info(f"TensorBoard log is available at {log_dir}")
+
+    def config(
+        self,
+        config: dict[str, Any],
+    ) -> None:
+        for k, v in config.items():
+            self.writer.add_text(f"config/{k}", str(v))
 
     def log(
         self,
-        metrics: dict[str, Any],
+        metrics: dict[str, float],
         step: int,
     ) -> None:
         for k, v in metrics.items():
@@ -168,18 +193,25 @@ class MetricsProcessor:
         self,
         config: Config,
         device: torch.device,
+        flops_per_token: int,
     ) -> None:
-        self.logger = None
-        if rank() == 0 and config.metrics.use_tensorboard:
-            log_dir = config.output_dir / "tensorboard" if config.output_dir else Path("./tensorboard")
-            self.logger = TensorboardLogger(log_dir=log_dir)
+        self.reporters = []
+        if config.metrics.all_node or rank() == 0:
+            if config.metrics.use_tensorboard:
+                log_dir = config.output_dir / "tensorboard" if config.output_dir else Path("./tensorboard")
+                self.reporters.append(TensorboardReporter(log_dir=log_dir))
+
+        for reporter in self.reporters:
+            reporter.config(config=dataclasses.asdict(config))
 
         self.device_mem_monitor = DeviceMemoryMonitor(device)
         self.log_freq = config.metrics.log_freq
         self.time_last_log = time.perf_counter()
-        self.gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
+        gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
+        logger.info(f"Detected device: {self.device_mem_monitor.device_name}, Peak FLOPS: {gpu_peak_flops}")
+        self.gpu_peak_flops = gpu_peak_flops
         self.ntokens_since_last_log = 0
-        self.num_flops_per_token = 0  # to be set later
+        self.flops_per_token = flops_per_token
         self.data_load_times: list[float] = []
         self.reset()
 
@@ -224,10 +256,10 @@ class MetricsProcessor:
         if extra_metrics is not None:
             metrics.update(extra_metrics)
 
-        if self.num_flops_per_token > 0:
+        if self.flops_per_token > 0:
             tps = self.ntokens_since_last_log / time_delta
-            mfu = 100 * self.num_flops_per_token * tps / self.gpu_peak_flops
-            tflops = self.num_flops_per_token * tps / 1e12
+            mfu = 100 * self.flops_per_token * tps / self.gpu_peak_flops
+            tflops = self.flops_per_token * tps / 1e12
 
             metrics.update({
                 "throughput(tps)": tps,
@@ -236,8 +268,8 @@ class MetricsProcessor:
             })
             log += f", tflops: {tflops:.2f}, mfu: {mfu:.2f}%"
 
-        if self.logger is not None:
-            self.logger.log(metrics, step)
+        for reporter in self.reporters:
+            reporter.log(metrics, step)
 
         logger.info(log)
 
@@ -258,5 +290,5 @@ class MetricsProcessor:
         raise NotImplementedError()
 
     def close(self) -> None:
-        if self.logger is not None:
-            self.logger.close()
+        for reporter in self.reporters:
+            reporter.close()

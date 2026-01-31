@@ -8,6 +8,7 @@ import torch.distributed as dist
 from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
 
+from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
 from sarasa.metrics import MetricsProcessor
@@ -47,12 +48,29 @@ class Trainer:
         vocab_size = len(self.tokenizer)
         self.config.model.vocab_size = vocab_size
 
+        # todo: support other loss functions
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
+
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
-            logger.info(
-                f"Model created with {sum(p.numel() for p in self.model.parameters() if p.requires_grad) / 1e6:.2f}M parameters"
-            )
+            num_params, flops_per_token = self.model.num_params_flops
+            model_size = num_params / 1e9
+            model_size, unit = (num_params / 1e6, "M") if model_size < 1 else (model_size, "B")
+            logger.info(f"Model created with {model_size:.2f}{unit} parameters")
+
+        # following torchtitan, (S)AC -> compilation -> distributed wrapping
+        if config.train.use_sac:
+            logger.info("Applying Selective Activation Checkpointing (SAC)")
+            for i, block in enumerate(self.model.blocks):
+                self.model.blocks[i] = apply_op_sac(block)
+
+        if config.train.compile:
+            logger.info("Compiling the model")
+            for block in self.model.blocks:
+                block.compile(fullgraph=True)
+            self.model.compile(dynamic=False)
+            self.loss_fn.compile()
 
         if world_size() > 1:
             apply_distributed(
@@ -65,22 +83,12 @@ class Trainer:
         self.model.to_empty(device=self.device)
         self.model.init_weights()
 
-        # todo: support other loss functions
-        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
-
-        if config.train.compile:
-            for block in self.model.blocks:
-                block.compile(fullgraph=True)
-            self.model.compile(dynamic=False)
-            self.loss_fn.compile()
-            logger.info("Compiled the model")
-
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
-        # setup metrics and ckeckpointer
+        # setup metrics and checkpointer
         # todo: configure num_flops_per_token
-        self.metrics_processor = MetricsProcessor(config, self.device)
+        self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
 
         dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
@@ -98,6 +106,15 @@ class Trainer:
 
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
+
+        if config.train.use_fa4:
+            logger.info("Using FA4 flash attention")
+            try:
+                torch.nn.attention.activate_flash_attention_impl("FA4")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to activate FA4 flash attention: {e}. Install sarasa with `flash_attn` extra for better performance."
+                )
 
     def __del__(self) -> None:
         # cleanup distributed
@@ -179,15 +196,14 @@ class Trainer:
             loss.backward()
             losses.append(loss.detach())
 
-        grad_norm = -1
         if self.config.train.grad_clip is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(),
-                self.config.train.grad_clip,
-                foreach=self.device.type == "cuda",
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.config.train.grad_clip, foreach=self.device.type == "cuda"
             )
+
         if self.checkpointer is not None:
             self.checkpointer.wait_for_staging()
+
         self.optimizer.step()
         self.lr_scheduler.step()
 
@@ -203,6 +219,9 @@ class Trainer:
             dist.all_reduce(max_loss, op=dist.ReduceOp.MAX)
         else:
             avg_loss = max_loss = loss
+
+        with torch.no_grad():
+            grad_norm = torch.nn.utils.get_total_norm(self.model.parameters(), foreach=self.device.type == "cuda")
 
         lr = self.lr_scheduler.get_last_lr()[0]
         self.metrics_processor.log(

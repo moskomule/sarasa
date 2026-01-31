@@ -5,7 +5,7 @@ A minimum LLM training framework built on pure PyTorch with simplicity and exten
 ## Installation
 
 ```bash
-uv sync [--extra cpu|cu128|cu130]
+uv sync [--extra cpu|cu128|cu130] [--extra flash_attn]
 ```
 
 or
@@ -14,12 +14,33 @@ or
 uv add git+https://github.com/moskomule/sarasa.git
 ```
 
+## Features
+
+- Pure PyTorch implementation
+- Flexible configuration system with command-line overrides
+- Support from a single GPU to multiple GPUs (simple DDP and FSDP for now)
+- Selective activation checkpointing (SAC) for memory efficiency
+- Async distributed checkpoint saving
+
+- [ ] Checkpoint loading
+
 ## Usage
 
+It's (almost) ready to use.
+First, set up tokenizer, e.g.,
+
 ```bash
-uv run torchrun --nproc_per_node="gpu" main.py\
-[--config-file /path/to/config.py]\ # config file is optional
-[--seed 42] [--train.steps 1000] # override config values from command line
+mkdir tokenizer
+cd tokenizer
+uvx hf download --local-dir . --include "tokenizer*" "meta-llama/Llama-3.1-8B"
+```
+
+Then, the following command starts training of a GPT model on FineWeb-edu with a single or multiple GPUs.
+
+```bash
+uv run torchrun --nproc_per_node="gpu" main.py \
+--config-file configs/example.py \
+[--train.local-batch-size 8 ...] # override config options as needed
 ```
 
 ### Extending with Custom Components
@@ -33,7 +54,15 @@ from sarasa import Trainer, Config
 class CustomOptimizer(torch.optim.Optimizer):
     ...
 
-class CustomOptimConfig:
+class CustomOptim:
+    lr: float = ...
+
+    def create(self,
+               model: torch.nn.Module
+    ) -> torch.optim.Optimizer:
+        return CustomOptimizer(model.parameters(), lr=self.lr, ...)
+
+class CustomOptim2:
     lr: float = ...
 
     def create(self,
@@ -43,9 +72,15 @@ class CustomOptimConfig:
 
 
 if __name__ == "__main__":
-    config = Config.from_cli(optim=CustomOptimConfig)
+    config = Config.from_cli(optim_type=CustomOptim | CustomOptim2)
     trainer = Trainer(config)
     trainer.train()
+```
+
+From the command line, you can specify which custom optimizer to use:
+
+```bash
+python script.py optim:custom_optim --optim.lr 0.001 ...
 ```
 
 ### Config File Example
@@ -54,7 +89,7 @@ It's very simple. IDE autocompletion will help you.
 
 ```python
 from sarasa.config import Config, Data, LRScheduler, Model, Train, LRScheduler
-from custom_optim import CustomOptimConfig
+from custom_optim import CustomOptim
 
 # only one Config instance should be defined in each config file
 config = Config.create(
@@ -64,7 +99,7 @@ config = Config.create(
         global_batch_size=256,
         dtype="bfloat16",
     ),
-    optim=CustomOptimConfig(lr=0.001),
+    optim=CustomOptim(lr=0.001),
     lr_scheduler=LRScheduler(
         decay_type="linear",
         warmup_steps=1000,

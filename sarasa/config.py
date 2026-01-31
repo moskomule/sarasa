@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import sys
 from pathlib import Path
@@ -13,7 +15,7 @@ Users can define their own configuration dataclasses and pass them to Config.fro
 """
 from sarasa.data import DataConfig as Data  # noqa
 from sarasa.models import ModelConfig as Model  # noqa
-from sarasa.optimizers import AdamWConfig as AdamW  # noqa
+from sarasa.optimizers import AdamW  # noqa
 
 
 @dataclasses.dataclass
@@ -104,14 +106,21 @@ class Train:
     grad_accum_steps = global_batch_size // (local_batch_size * num_devices)
     """
 
+    use_fa4: bool = True
+    """Whether to use FA4 flash attention if available."""
+
     val_freq: int = -1
     """Validation frequency (in steps). If -1, no validation is performed."""
+
+    use_sac: bool = False
+    """Whether to use selective activation checkpointing."""
 
 
 @dataclasses.dataclass
 class Metrics:
     log_freq: int = 10
     use_tensorboard: bool = False
+    all_node: bool = False
 
 
 @dataclasses.dataclass

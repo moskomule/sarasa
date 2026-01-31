@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = ["hatchling >= 1.26", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
 
 [project]
 name = "sarasa"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "datasets>=4.5.0",
     "loguru>=0.7.3",
@@ -17,6 +17,9 @@ dependencies = [
     "tokenizers>=0.22.2",
     "tyro>=1.0.5",
 ]
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
 
 [dependency-groups]
 dev = [
@@ -34,6 +37,9 @@ cu128 = [
 cu130 = [
   "torch>=2.10.0",
 ]
+flash_attn = [
+  "flash-attn-cute",
+]
 
 [tool.uv]
 conflicts = [
@@ -50,6 +56,7 @@ torch = [
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
 ]
+flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -64,4 +71,10 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
 explicit = true
