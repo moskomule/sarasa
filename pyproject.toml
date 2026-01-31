@@ -22,6 +22,12 @@ dependencies = [
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "pep440"
+dirty = false
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
@@ -43,6 +49,7 @@ flash_attn = [
 ]
 
 [tool.uv]
+default-groups = ["cu128"]
 conflicts = [
   [
     { extra = "cpu" },
@@ -53,7 +60,6 @@ conflicts = [
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu128" },
   { index = "pytorch-cpu", extra = "cpu" },
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
