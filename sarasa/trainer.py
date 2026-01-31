@@ -112,7 +112,7 @@ class Trainer:
                 torch.nn.attention.activate_flash_attention_impl("FA4")
             except Exception as e:
                 logger.warning(
-                    f"Failed to activate FA4 flash attention: {e}. Install sarasa with flash-attn-cute extra for better performance."
+                    f"Failed to activate FA4 flash attention: {e}. Install sarasa with `flash_attn` extra for better performance."
                 )
 
     def __del__(self) -> None:

@@ -140,7 +140,25 @@ class DeviceMemoryMonitor:
         )
 
 
-class TensorboardLogger:
+class BaseReporter:
+    def config(
+        self,
+        config: dict[str, Any],
+    ) -> None:
+        raise NotImplementedError()
+
+    def log(
+        self,
+        metrics: dict[str, Any],
+        step: int,
+    ) -> None:
+        raise NotImplementedError()
+
+    def close(self) -> None:
+        raise NotImplementedError()
+
+
+class TensorboardReporter(BaseReporter):
     def __init__(
         self,
         log_dir: Path,
@@ -149,11 +167,18 @@ class TensorboardLogger:
 
         self.writer = SummaryWriter(log_dir=log_dir, max_queue=1000)
 
-        logger.info(f"Initialized TensorBoard logger at {log_dir}")
+        logger.info(f"TensorBoard log is available at {log_dir}")
+
+    def config(
+        self,
+        config: dict[str, Any],
+    ) -> None:
+        for k, v in config.items():
+            self.writer.add_text(f"config/{k}", str(v))
 
     def log(
         self,
-        metrics: dict[str, Any],
+        metrics: dict[str, float],
         step: int,
     ) -> None:
         for k, v in metrics.items():
@@ -169,10 +194,14 @@ class MetricsProcessor:
         config: Config,
         device: torch.device,
     ) -> None:
-        self.logger = None
-        if rank() == 0 and config.metrics.use_tensorboard:
-            log_dir = config.output_dir / "tensorboard" if config.output_dir else Path("./tensorboard")
-            self.logger = TensorboardLogger(log_dir=log_dir)
+        self.reporters = []
+        if config.metrics.all_node or rank() == 0:
+            if config.metrics.use_tensorboard:
+                log_dir = config.output_dir / "tensorboard" if config.output_dir else Path("./tensorboard")
+                self.reporters.append(TensorboardReporter(log_dir=log_dir))
+
+        for reporter in self.reporters:
+            reporter.config(config=dataclasses.asdict(config))
 
         self.device_mem_monitor = DeviceMemoryMonitor(device)
         self.log_freq = config.metrics.log_freq
@@ -236,8 +265,8 @@ class MetricsProcessor:
             })
             log += f", tflops: {tflops:.2f}, mfu: {mfu:.2f}%"
 
-        if self.logger is not None:
-            self.logger.log(metrics, step)
+        for reporter in self.reporters:
+            reporter.log(metrics, step)
 
         logger.info(log)
 
@@ -258,5 +287,5 @@ class MetricsProcessor:
         raise NotImplementedError()
 
     def close(self) -> None:
-        if self.logger is not None:
-            self.logger.close()
+        if self.reporters is not None:
+            self.reporters.close()

@@ -120,6 +120,7 @@ class Train:
 class Metrics:
     log_freq: int = 10
     use_tensorboard: bool = False
+    all_node: bool = False
 
 
 @dataclasses.dataclass
