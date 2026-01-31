@@ -207,7 +207,9 @@ class MetricsProcessor:
         self.device_mem_monitor = DeviceMemoryMonitor(device)
         self.log_freq = config.metrics.log_freq
         self.time_last_log = time.perf_counter()
-        self.gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
+        gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
+        logger.info(f"Detected device: {self.device_mem_monitor.device_name}, Peak FLOPS: {gpu_peak_flops}")
+        self.gpu_peak_flops = gpu_peak_flops
         self.ntokens_since_last_log = 0
         self.flops_per_token = flops_per_token
         self.data_load_times: list[float] = []
