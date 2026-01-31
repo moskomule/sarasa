@@ -286,10 +286,11 @@ class MuonH(torch.optim.Muon):
             weight_decay=0,
             momentum=momentum,
             nesterov=nesterov,
+            rescale_to_unit_ball=rescale_to_unit_ball,
             **kwargs,
         )
         for group in self.param_groups:
-            group.setdefault("rescale_to_unit_ball", kwargs.get("rescale_to_unit_ball", False))
+            group.setdefault("rescale_to_unit_ball", rescale_to_unit_ball)
 
     def _init_group(
         self,
