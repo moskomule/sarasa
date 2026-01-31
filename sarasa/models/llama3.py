@@ -2,9 +2,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from sarasa.models import ModelConfig
+from sarasa.models import BaseModel, ModelConfig
 from sarasa.models.attention import CausalSelfAttention
-from sarasa.models.base import BaseModel
 from sarasa.models.utils import RMSNorm, RoPE
 
 
