@@ -1,5 +1,3 @@
-# a simplified activation checkpointing wrapper based on torchtitan
-
 from collections import defaultdict
 
 import torch
@@ -46,14 +44,15 @@ def _op_sac_policy(
 
             if func == torch.ops.aten.mm.default:
                 if len(args) > 1 and args[1].shape in mm_recompute_shapes:
+                    # moe's router
                     return CheckpointPolicy.PREFER_RECOMPUTE
                 meta[key] += 1
 
             # save ops in save list, except every nth op
-            should_save = (func in ops_to_save) and not (
+            must_save = (func in ops_to_save) and not (
                 func == torch.ops.aten.mm.default and (meta[key] % every_nth_mm == 0)
             )
-            return CheckpointPolicy.MUST_SAVE if should_save else CheckpointPolicy.PREFER_RECOMPUTE
+            return CheckpointPolicy.MUST_SAVE if must_save else CheckpointPolicy.PREFER_RECOMPUTE
 
         return _custom_policy
 
@@ -69,6 +68,12 @@ def apply_op_sac(
     mm_recompute_shapes: set | None = None,
     every_nth_mm: int = 2,
 ) -> torch.nn.Module:
+    """Applies selective op activation checkpointing to the given model.
+
+    Ops like mm is expensive, so we want to store their activations for backward.
+    On the other hand, ops like activation functions are cheap, so we prefer to recompute them.
+
+    """
     ops_to_save = ops_to_save or _ops_sac_save
     return checkpoint_wrapper(
         model,
