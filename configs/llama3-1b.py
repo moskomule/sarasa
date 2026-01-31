@@ -1,4 +1,4 @@
-from sarasa.config import AdamW, Config, Data, LRScheduler, Model, Train
+from sarasa.config import FSDP, AdamW, Config, Data, LRScheduler, Model, Train
 
 config = Config.create(
     model=Model(
@@ -10,7 +10,7 @@ config = Config.create(
         name="llama3",
     ),
     train=Train(
-        local_batch_size=16,
+        local_batch_size=32,
         global_batch_size=256,
         dtype="bfloat16",
         use_sac=True,
@@ -21,5 +21,6 @@ config = Config.create(
         warmup_steps=0,
     ),
     optim=AdamW(lr=3e-4),
+    distributed=FSDP(),
     seed=12,
 )
