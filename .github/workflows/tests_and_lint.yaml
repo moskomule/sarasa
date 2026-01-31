@@ -6,6 +6,9 @@ on:
 jobs:
   run-pytest-and-lint:
     runs-on: ubuntu-latest
+    env:
+      # to disable GPU usage during tests
+      CUDA_VISIBLE_DEVICES: ""
     steps:
       - name: Check out source repository
         uses: actions/checkout@v6
