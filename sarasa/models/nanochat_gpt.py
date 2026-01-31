@@ -61,6 +61,7 @@ class GPT(BaseModel):
         => We actually initialize all data (parameters, buffers, etc.) in init_weights() instead.
         """
         super().__init__()
+        self.config = config
         self.num_heads = config.num_heads
         self.hidden_dim = config.hidden_dim
         self.seq_len = config.seq_len

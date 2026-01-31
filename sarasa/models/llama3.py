@@ -62,6 +62,7 @@ class Llama3(BaseModel):
         ffn_dim_multiplier: float | None = 1.4,
     ):
         super().__init__()
+        self.config = config
         self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
         self.max_seq_len = config.seq_len * 16
         self.head_dim = config.head_dim

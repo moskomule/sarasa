@@ -193,6 +193,7 @@ class MetricsProcessor:
         self,
         config: Config,
         device: torch.device,
+        flops_per_token: int,
     ) -> None:
         self.reporters = []
         if config.metrics.all_node or rank() == 0:
@@ -208,7 +209,7 @@ class MetricsProcessor:
         self.time_last_log = time.perf_counter()
         self.gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
         self.ntokens_since_last_log = 0
-        self.num_flops_per_token = 0  # to be set later
+        self.flops_per_token = flops_per_token
         self.data_load_times: list[float] = []
         self.reset()
 
@@ -253,10 +254,10 @@ class MetricsProcessor:
         if extra_metrics is not None:
             metrics.update(extra_metrics)
 
-        if self.num_flops_per_token > 0:
+        if self.flops_per_token > 0:
             tps = self.ntokens_since_last_log / time_delta
-            mfu = 100 * self.num_flops_per_token * tps / self.gpu_peak_flops
-            tflops = self.num_flops_per_token * tps / 1e12
+            mfu = 100 * self.flops_per_token * tps / self.gpu_peak_flops
+            tflops = self.flops_per_token * tps / 1e12
 
             metrics.update({
                 "throughput(tps)": tps,

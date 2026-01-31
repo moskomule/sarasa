@@ -54,9 +54,10 @@ class Trainer:
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
-            logger.info(
-                f"Model created with {sum(p.numel() for p in self.model.parameters() if p.requires_grad) / 1e6:.2f}M parameters"
-            )
+            num_params, flops_per_token = self.model.num_params_flops
+            model_size = num_params / 1e9
+            model_size = num_params / 1e6 if model_size < 1 else model_size
+            logger.info(f"Model created with {model_size:.2f}{'M' if model_size < 1 else 'B'} parameters")
 
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
@@ -87,7 +88,7 @@ class Trainer:
 
         # setup metrics and ckeckpointer
         # todo: configure num_flops_per_token
-        self.metrics_processor = MetricsProcessor(config, self.device)
+        self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
 
         dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
