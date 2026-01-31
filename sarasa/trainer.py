@@ -59,6 +59,13 @@ class Trainer:
             model_size, unit = (num_params / 1e6, "M") if model_size < 1 else (model_size, "B")
             logger.info(f"Model created with {model_size:.2f}{unit} parameters")
 
+        if config.train.use_float8:
+            from sarasa.float8 import convert_to_float8_
+
+            logger.info("Converting model to float8")
+            for block in self.model.blocks:
+                convert_to_float8_(block)
+
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
             logger.info("Applying Selective Activation Checkpointing (SAC)")
@@ -101,7 +108,8 @@ class Trainer:
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context = contextlib.nullcontext()
-        if config.distributed.name != "fsdp":
+        if config.distributed.name != "fsdp" and not config.train.use_float8:
+            logger.info(f"Using automatic mixed precision with dtype: {config.train.dtype}")
             self.amp_context = torch.autocast(device_type=self.device.type, dtype=getattr(torch, config.train.dtype))
 
         # todo: setup profiler context

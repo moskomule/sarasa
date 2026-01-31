@@ -51,6 +51,9 @@ cu130 = [
 flash_attn = [
   "flash-attn-cute",
 ]
+float8 = [
+    "torchao>=0.15.0",
+]
 
 [tool.uv]
 conflicts = [

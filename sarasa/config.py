@@ -106,14 +106,17 @@ class Train:
     grad_accum_steps = global_batch_size // (local_batch_size * num_devices)
     """
 
-    use_fa4: bool = True
-    """Whether to use FA4 flash attention if available."""
-
     val_freq: int = -1
     """Validation frequency (in steps). If -1, no validation is performed."""
 
+    use_fa4: bool = True
+    """Whether to use FA4 flash attention if available."""
+
     use_sac: bool = False
     """Whether to use selective activation checkpointing."""
+
+    use_float8: bool = False
+    """Whether to use float8 quantization for model weights where applicable."""
 
 
 @dataclasses.dataclass
