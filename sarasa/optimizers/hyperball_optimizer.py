@@ -247,20 +247,21 @@ def _multi_tensor_adamh(
 
         torch._foreach_div_(exp_avg_sq_sqrt, bias_correction2_sqrt)
         torch._foreach_add_(exp_avg_sq_sqrt, eps)
+        updates = [t.clone() for t in device_exp_avgs]
         # device_exp_avgs / exp_avg_sq_sqrt
-        torch._foreach_div_(device_exp_avgs, exp_avg_sq_sqrt)
+        torch._foreach_div_(updates, exp_avg_sq_sqrt)
 
         # hyperball update
 
         # normalize updates to lie on the hyperball
-        norms = torch._foreach_norm(device_exp_avgs, 2)
+        norms = torch._foreach_norm(updates, 2)
         torch._foreach_clamp_min_(norms, eps)
-        torch._foreach_div_(device_exp_avgs, norms)
+        torch._foreach_div_(updates, norms)
         # scale by initial norms
-        torch._foreach_mul_(device_exp_avgs, initial_norms)
+        torch._foreach_mul_(updates, initial_norms)
         # update parameters
-        torch._foreach_mul_(device_exp_avgs, step_size)
-        torch._foreach_add_(device_params, device_exp_avgs)
+        torch._foreach_mul_(updates, step_size)
+        torch._foreach_add_(device_params, updates)
 
         # normalize parameters to lie on the hyperball
         norms = torch._foreach_norm(device_params, 2)

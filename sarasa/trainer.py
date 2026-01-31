@@ -56,8 +56,8 @@ class Trainer:
             self.model = self.config.model.create()
             num_params, flops_per_token = self.model.num_params_flops
             model_size = num_params / 1e9
-            model_size = num_params / 1e6 if model_size < 1 else model_size
-            logger.info(f"Model created with {model_size:.2f}{'M' if model_size < 1 else 'B'} parameters")
+            model_size, unit = (num_params / 1e6, "M") if model_size < 1 else (model_size, "B")
+            logger.info(f"Model created with {model_size:.2f}{unit} parameters")
 
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
@@ -86,7 +86,7 @@ class Trainer:
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
-        # setup metrics and ckeckpointer
+        # setup metrics and checkpointer
         # todo: configure num_flops_per_token
         self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None

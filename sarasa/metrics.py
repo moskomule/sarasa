@@ -288,5 +288,5 @@ class MetricsProcessor:
         raise NotImplementedError()
 
     def close(self) -> None:
-        if self.reporters is not None:
-            self.reporters.close()
+        for reporter in self.reporters:
+            reporter.close()

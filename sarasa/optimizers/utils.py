@@ -21,12 +21,7 @@ class GroupedOptimizer(torch.optim.Optimizer):
             optim.zero_grad(set_to_none=set_to_none)
 
     def state_dict(self) -> dict:
-        return {
-            "optimizers": [optim.state_dict() for optim in self.optimizers],
-        }
+        return super().state_dict()
 
     def load_state_dict(self, state_dict: dict) -> None:
-        optim_states = state_dict["optimizers"]
-        assert len(optim_states) == len(self.optimizers)
-        for optim, optim_state in zip(self.optimizers, optim_states):
-            optim.load_state_dict(optim_state)
+        super().load_state_dict(state_dict)
