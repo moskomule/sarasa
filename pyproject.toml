@@ -49,7 +49,6 @@ flash_attn = [
 ]
 
 [tool.uv]
-default-groups = ["cu128"]
 conflicts = [
   [
     { extra = "cpu" },
