@@ -43,9 +43,12 @@ class AdamH:
     betas: tuple[float, float] = (0.9, 0.95)
     rescale_to_unit_ball: bool = False
 
-    adam_lr: float = lr
-    adam_betas: tuple[float, float] = betas
+    adam_lr: float | None = None
+    adam_betas: tuple[float, float] = (0.9, 0.95)
     adam_weight_decay: float = 0
+
+    def __post_init__(self):
+        self.adam_lr = self.adam_lr or self.lr
 
     def create(
         self,
@@ -81,11 +84,14 @@ class Muon:
     weight_decay: float = 0.1
     momentum: float = 0.9
 
-    adam_lr: float = lr
+    adam_lr: float | None = None
     adam_betas: tuple[float, float] = (0.9, 0.95)
     adam_weight_decay: float = 0
 
     adjust_lr_fn: Literal["original", "match_rms_adamw"] = "match_rms_adamw"
+
+    def __post_init__(self):
+        self.adam_lr = self.adam_lr or self.lr
 
     def create(
         self,
@@ -122,11 +128,14 @@ class MuonH:
     momentum: float = 0.9
     rescale_to_unit_ball: bool = False
 
-    adam_lr: float = lr
+    adam_lr: float | None = None
     adam_betas: tuple[float, float] = (0.9, 0.95)
     adam_weight_decay: float = 0
 
     adjust_lr_fn: Literal["original", "match_rms_adamw"] = "match_rms_adamw"
+
+    def __post_init__(self):
+        self.adam_lr = self.adam_lr or self.lr
 
     def create(
         self,

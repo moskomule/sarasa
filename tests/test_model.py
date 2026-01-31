@@ -1,10 +1,15 @@
+import typing
+
+import pytest
 import torch
 
 from sarasa.models import ModelConfig
 
 
-def test_nanochat_gpt():
-    config = ModelConfig(name="nanochat_gpt", num_layers=4, head_dim=64, vocab_size=32, seq_len=16)
+@pytest.mark.parametrize("name", typing.get_type_hints(ModelConfig)["name"].__args__)
+@torch.no_grad()
+def test_model_shape(name):
+    config = ModelConfig(name=name, num_layers=4, head_dim=64, vocab_size=32, seq_len=16)
     with torch.device("meta"):
         model = config.create()
         input = torch.randint(0, config.vocab_size, (1, 16))
