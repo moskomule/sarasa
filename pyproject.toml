@@ -22,6 +22,9 @@ dependencies = [
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
+[tool.uv-dynamic-versioning]
+serialize_pep440 = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
