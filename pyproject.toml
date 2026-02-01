@@ -73,8 +73,8 @@ torch = [
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
 ]
-flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute" }
-transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine", branch = "stable" }
+flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute", extra = "flash_attn" }
+transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine", branch = "stable", extra = "fp8" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
