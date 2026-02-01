@@ -9,6 +9,7 @@ from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from sarasa.activation_checkpoint import apply_op_sac
+from sarasa.amp import amp_context
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
 from sarasa.metrics import MetricsProcessor
@@ -60,11 +61,10 @@ class Trainer:
             logger.info(f"Model created with {model_size:.2f}{unit} parameters")
 
         if config.train.use_float8:
-            from sarasa.float8 import convert_to_float8_
+            from sarasa.amp import to_te_linear_
 
-            logger.info("Converting model to float8")
-            for block in self.model.blocks:
-                convert_to_float8_(block)
+            logger.info("Converting linear layers to TE float-8/4 compatible modules")
+            to_te_linear_(self.model)
 
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
@@ -107,13 +107,7 @@ class Trainer:
         self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
-        self.amp_context = contextlib.nullcontext()
-        if config.distributed.name != "fsdp":
-            self.amp_context = torch.autocast(
-                device_type=self.device.type,
-                dtype=getattr(torch, config.train.amp_dtype),
-            )
-
+        self.amp_context = amp_context(config.train.amp_dtype, self.device, config.distributed.name == "fsdp")
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
 

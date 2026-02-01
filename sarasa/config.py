@@ -7,6 +7,8 @@ from typing import Literal
 
 import torch
 
+from sarasa.amp import AMPDtype
+
 """
 Variable configuration dataclasses for model, optimizer, lr scheduler, and data
 These classes have `create` methods to instantiate the actual objects
@@ -93,8 +95,11 @@ class Train:
     dtype: Literal["bfloat16", "float32"] = "float32"
     """Dtype used for model initialization"""
 
-    amp_dtype: Literal["bfloat16", "float16", "float32"] = "bfloat16"
-    """Dtype used for automatic mixed precision training"""
+    amp_dtype: AMPDtype = AMPDtype.bfloat16
+    """Dtype used for automatic mixed precision training
+    
+    fp8, mxfp8, and nvfp4 require transformer-engine. `uv sync --extra float8`
+    """
 
     compile: bool = False
 
