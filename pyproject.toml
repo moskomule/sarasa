@@ -52,7 +52,7 @@ flash_attn = [
   "flash-attn-cute",
 ]
 float8 = [
-    "torchao>=0.15.0",
+    "transformer-engine",
 ]
 
 [tool.uv]
@@ -63,6 +63,9 @@ conflicts = [
     { extra = "cu130" },
   ],
 ]
+# to install transformer-engine from source, 
+# cudnn and nccl must be pre-installed in the system
+no-build-isolation-package = ["transformer-engine"]
 
 [tool.uv.sources]
 torch = [
@@ -71,6 +74,7 @@ torch = [
   { index = "pytorch-cu130", extra = "cu130" },
 ]
 flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute" }
+transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine", branch = "stable" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -92,3 +96,7 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[[tool.uv.dependency-metadata]]
+name = "transformer-engine-torch"
+requires-dist = ["pybind11", "ninja"]

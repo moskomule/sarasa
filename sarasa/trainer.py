@@ -108,7 +108,7 @@ class Trainer:
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context = contextlib.nullcontext()
-        if config.distributed.name != "fsdp" and not config.train.use_float8:
+        if config.distributed.name != "fsdp":
             logger.info(f"Using automatic mixed precision with dtype: {config.train.dtype}")
             self.amp_context = torch.autocast(device_type=self.device.type, dtype=getattr(torch, config.train.dtype))
 
