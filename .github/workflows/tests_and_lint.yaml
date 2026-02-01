@@ -27,7 +27,7 @@ jobs:
         run: |
           uv venv
           uv pip install setuptools
-          uv sync --only-dev --extra cpu
+          uv sync --no-extra fp8 --no-extra flash_attn --no-extra cu128 --no-extra cu130 --dev
 
       - name: Pytest
         run: uv run pytest
