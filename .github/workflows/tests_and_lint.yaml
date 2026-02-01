@@ -28,7 +28,7 @@ jobs:
           uv venv
           uv pip install setuptools --upgrade # to avoid build issues
           uv pip install torch --index-url https://download.pytorch.org/whl/cpu --upgrade 
-          uv sync --only-dev
+          uv sync --dev --only-group dev --extra cpu
 
       - name: Pytest
         run: uv run pytest
