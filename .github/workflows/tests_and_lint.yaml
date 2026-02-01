@@ -22,10 +22,11 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
             enable-cache: true
-            python-version: '3.13'
 
       - name: Install dependencies
         run: |
+          uv venv
+          uv pip install setuptools --upgrade # to avoid build issues
           uv sync --dev --extra cpu
 
       - name: Pytest
