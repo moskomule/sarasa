@@ -193,11 +193,11 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
         if self.output_dir is not None:
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        if hasattr(self.model, "seq_len") and self.model.seq_len is None:
-            if self.data.seq_len is not None:
+        if hasattr(self.model, "seq_len"):
+            if self.model.seq_len is None and self.data.seq_len is not None:
                 self.model.seq_len = self.data.seq_len
-            else:
-                raise ValueError("Either model.seq_len or data.seq_len must be set.")
+            if self.model.seq_len is None:
+                raise ValueError("seq_len must be specified in either model or data configuration.")
 
         if isinstance(self.distributed, FSDP):
             self.distributed.dtype = self.distributed.dtype or self.train.dtype
