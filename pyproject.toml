@@ -51,7 +51,7 @@ cu130 = [
 flash_attn = [
   "flash-attn-cute",
 ]
-float8 = [
+fp8 = [
     "transformer-engine",
 ]
 
@@ -99,4 +99,4 @@ explicit = true
 
 [[tool.uv.dependency-metadata]]
 name = "transformer-engine-torch"
-requires-dist = ["pybind11", "ninja"]
+requires-dist = ["pybind11", "ninja", "setuptools"]

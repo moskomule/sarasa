@@ -124,9 +124,6 @@ class Train:
     use_sac: bool = False
     """Whether to use selective activation checkpointing."""
 
-    use_float8: bool = False
-    """Whether to use float8 quantization for model weights where applicable."""
-
 
 @dataclasses.dataclass
 class Metrics:
@@ -169,7 +166,7 @@ class FSDP(Distributed):
     dtype: str | None = None
     """Dtype for FSDP reduce operations. If None, uses train.dtype."""
 
-    amp_dtype: str | None = None
+    amp_dtype: AMPDtype | None = None
     """Dtype for FSDP parameter storage. If None, uses train.amp_dtype."""
 
 

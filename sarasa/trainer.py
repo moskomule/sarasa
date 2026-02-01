@@ -9,7 +9,7 @@ from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from sarasa.activation_checkpoint import apply_op_sac
-from sarasa.amp import amp_context
+from sarasa.amp import AMPDtype, amp_context
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
 from sarasa.metrics import MetricsProcessor
@@ -60,11 +60,11 @@ class Trainer:
             model_size, unit = (num_params / 1e6, "M") if model_size < 1 else (model_size, "B")
             logger.info(f"Model created with {model_size:.2f}{unit} parameters")
 
-        if config.train.use_float8:
-            from sarasa.amp import to_te_linear_
+            if config.train.amp_dtype in {AMPDtype.fp8, AMPDtype.mxfp8, AMPDtype.nvfp4}:
+                from sarasa.amp import to_te_linear_
 
-            logger.info("Converting linear layers to TE float-8/4 compatible modules")
-            to_te_linear_(self.model)
+                logger.info("Converting linear layers to TE float-8/4 compatible modules")
+                to_te_linear_(self.model)
 
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
