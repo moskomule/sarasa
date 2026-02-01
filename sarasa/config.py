@@ -91,6 +91,10 @@ class Train:
     grad_clip: float | None = None
 
     dtype: Literal["bfloat16", "float32"] = "float32"
+    """Dtype used for model initialization"""
+
+    amp_dtype: Literal["bfloat16", "float16", "float32"] = "bfloat16"
+    """Dtype used for automatic mixed precision training"""
 
     compile: bool = False
 
@@ -154,6 +158,12 @@ class FSDP(Distributed):
     reshard_after_forward: bool = False
     """Whether to reshard model parameters after each forward pass (FSDP only)."""
 
+    dtype: str | None = None
+    """Dtype for FSDP reduce operations. If None, uses train.dtype."""
+
+    amp_dtype: str | None = None
+    """Dtype for FSDP parameter storage. If None, uses train.amp_dtype."""
+
 
 @dataclasses.dataclass
 class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
@@ -188,6 +198,10 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 self.model.seq_len = self.data.seq_len
             else:
                 raise ValueError("Either model.seq_len or data.seq_len must be set.")
+
+        if isinstance(self.distributed, FSDP):
+            self.distributed.dtype = self.distributed.dtype or self.train.dtype
+            self.distributed.amp_dtype = self.distributed.amp_dtype or self.train.amp_dtype
 
     @classmethod
     def create(

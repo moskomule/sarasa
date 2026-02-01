@@ -102,7 +102,10 @@ class Trainer:
 
         self.amp_context = contextlib.nullcontext()
         if config.distributed.name != "fsdp":
-            self.amp_context = torch.autocast(device_type=self.device.type, dtype=getattr(torch, config.train.dtype))
+            self.amp_context = torch.autocast(
+                device_type=self.device.type,
+                dtype=getattr(torch, config.train.amp_dtype),
+            )
 
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
