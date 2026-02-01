@@ -98,5 +98,5 @@ publish-url = "https://test.pypi.org/legacy/"
 explicit = true
 
 [[tool.uv.dependency-metadata]]
-name = "transformer-engine-torch"
+name = "transformer-engine"
 requires-dist = ["pybind11", "ninja"]
