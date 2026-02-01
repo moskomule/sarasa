@@ -52,6 +52,8 @@ class Trainer:
         # todo: support other loss functions
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
 
+        use_transformer_engine = config.train.amp_dtype in {AMPDtype.fp8, AMPDtype.mxfp8, AMPDtype.nvfp4}
+
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
@@ -60,7 +62,7 @@ class Trainer:
             model_size, unit = (num_params / 1e6, "M") if model_size < 1 else (model_size, "B")
             logger.info(f"Model created with {model_size:.2f}{unit} parameters")
 
-            if config.train.amp_dtype in {AMPDtype.fp8, AMPDtype.mxfp8, AMPDtype.nvfp4}:
+            if use_transformer_engine:
                 from sarasa.amp import to_te_linear_
 
                 logger.info("Converting linear layers to TE float-8/4 compatible modules")
@@ -75,7 +77,8 @@ class Trainer:
         if config.train.compile:
             logger.info("Compiling the model")
             for block in self.model.blocks:
-                block.compile(fullgraph=True)
+                # te.Linear cauese graph break
+                block.compile(fullgraph=not use_transformer_engine)
             self.model.compile(dynamic=False)
             self.loss_fn.compile()
 
