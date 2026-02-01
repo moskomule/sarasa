@@ -149,8 +149,8 @@ def apply_distributed(
 
         # todo: make dtypes configurable
         mp_policy = MixedPrecisionPolicy(
-            param_dtype=torch.bfloat16,
-            reduce_dtype=torch.float32,
+            param_dtype=getattr(torch, config.amp_dtype),
+            reduce_dtype=getattr(torch, config.dtype),
         )
 
         for block in model.blocks:
