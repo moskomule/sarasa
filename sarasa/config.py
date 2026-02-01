@@ -227,6 +227,8 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
 
         import tyro
 
+        from sarasa.utils import rank
+
         loaded_config = None
 
         if (under := ("--config_file" in sys.argv)) or ("--config-file" in sys.argv):
@@ -262,6 +264,7 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 data_type,
             ],
             default=loaded_config,
+            console_outputs=(rank() == 0),
         )
 
 
