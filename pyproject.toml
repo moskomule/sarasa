@@ -100,3 +100,6 @@ explicit = true
 [[tool.uv.dependency-metadata]]
 name = "transformer-engine"
 requires-dist = ["pybind11", "ninja"]
+
+[tool.uv.extra-build-dependencies]
+transformer-engine = ["setuptools"]
