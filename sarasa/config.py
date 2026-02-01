@@ -91,6 +91,10 @@ class Train:
     grad_clip: float | None = None
 
     dtype: Literal["bfloat16", "float32"] = "float32"
+    """Dtype used for model initialization"""
+
+    amp_dtype: Literal["bfloat16", "float16", "float32"] = "bfloat16"
+    """Dtype used for automatic mixed precision training"""
 
     compile: bool = False
 
@@ -157,6 +161,12 @@ class FSDP(Distributed):
     reshard_after_forward: bool = False
     """Whether to reshard model parameters after each forward pass (FSDP only)."""
 
+    dtype: str | None = None
+    """Dtype for FSDP reduce operations. If None, uses train.dtype."""
+
+    amp_dtype: str | None = None
+    """Dtype for FSDP parameter storage. If None, uses train.amp_dtype."""
+
 
 @dataclasses.dataclass
 class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
@@ -186,11 +196,15 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
         if self.output_dir is not None:
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        if hasattr(self.model, "seq_len") and self.model.seq_len is None:
-            if self.data.seq_len is not None:
+        if hasattr(self.model, "seq_len"):
+            if self.model.seq_len is None and self.data.seq_len is not None:
                 self.model.seq_len = self.data.seq_len
-            else:
-                raise ValueError("Either model.seq_len or data.seq_len must be set.")
+            if self.model.seq_len is None:
+                raise ValueError("seq_len must be specified in either model or data configuration.")
+
+        if isinstance(self.distributed, FSDP):
+            self.distributed.dtype = self.distributed.dtype or self.train.dtype
+            self.distributed.amp_dtype = self.distributed.amp_dtype or self.train.amp_dtype
 
     @classmethod
     def create(
@@ -230,6 +244,8 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
 
         import tyro
 
+        from sarasa.utils import rank
+
         loaded_config = None
 
         if (under := ("--config_file" in sys.argv)) or ("--config-file" in sys.argv):
@@ -265,6 +281,7 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 data_type,
             ],
             default=loaded_config,
+            console_outputs=(rank() == 0),
         )
 
 

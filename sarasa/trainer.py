@@ -109,8 +109,10 @@ class Trainer:
 
         self.amp_context = contextlib.nullcontext()
         if config.distributed.name != "fsdp":
-            logger.info(f"Using automatic mixed precision with dtype: {config.train.dtype}")
-            self.amp_context = torch.autocast(device_type=self.device.type, dtype=getattr(torch, config.train.dtype))
+            self.amp_context = torch.autocast(
+                device_type=self.device.type,
+                dtype=getattr(torch, config.train.amp_dtype),
+            )
 
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
@@ -134,30 +136,34 @@ class Trainer:
 
     @record
     def train(self):
-        logger.info("Starting training...")
+        try:
+            logger.info("Starting training...")
 
-        self.model.train()
-        with self.profile_context:
-            data_iter = self.batch_generator(self.data_loader)
-            for _ in range(self.config.train.steps):
-                self.step += 1
-                self.gc.collect(self.step)
-                try:
-                    self.train_step(data_iter)
-                except StopIteration:
-                    logger.warning("Data loader exhausted during training.")
-                    break
+            self.model.train()
+            with self.profile_context:
+                data_iter = self.batch_generator(self.data_loader)
+                for _ in range(self.config.train.steps):
+                    self.step += 1
+                    self.gc.collect(self.step)
+                    try:
+                        self.train_step(data_iter)
+                    except StopIteration:
+                        logger.warning("Data loader exhausted during training.")
+                        break
 
-                if self.checkpointer is not None:
-                    self.checkpointer.save(self.step)
+                    if self.checkpointer is not None:
+                        self.checkpointer.save(self.step)
 
-                if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
-                    self.evaluate()
+                    if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
+                        self.evaluate()
 
-                if world_size() > 1 and self.step == 1:
-                    update_timeout(self.config.distributed.train_timeout_seconds, self.device)
+                    if world_size() > 1 and self.step == 1:
+                        update_timeout(self.config.distributed.train_timeout_seconds, self.device)
 
-        logger.info("Training completed.")
+            logger.info("Training completed.")
+        finally:
+            logger.info("Cleaning up trainer...")
+            self.close()
 
     def batch_generator(
         self,
@@ -250,3 +256,10 @@ class Trainer:
         batch_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
     ) -> None:
         raise NotImplementedError
+
+    def close(self) -> None:
+        if self.checkpointer is not None:
+            self.checkpointer.close()
+
+        if self.metrics_processor is not None:
+            self.metrics_processor.close()
