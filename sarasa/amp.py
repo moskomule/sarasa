@@ -1,5 +1,6 @@
 import contextlib
 import enum
+from typing import Callable
 
 import torch
 import torch.nn as nn
@@ -42,30 +43,33 @@ def amp_context(
     dtype: AMPDtype,
     device: torch.device,
     is_fsdp: bool,
-) -> contextlib.AbstractContextManager:
-    if dtype in {
-        AMPDtype.bfloat16,
-        AMPDtype.float16,
-        AMPDtype.float32,
-    }:
-        if is_fsdp:
-            return contextlib.nullcontext()
-        else:
-            return torch.autocast(
-                device_type=device.type,
-                dtype=getattr(torch, dtype.value),
-            )
+) -> Callable[[], contextlib.AbstractContextManager]:
+    def wrapped():
+        if dtype in {
+            AMPDtype.bfloat16,
+            AMPDtype.float16,
+            AMPDtype.float32,
+        }:
+            if is_fsdp:
+                return contextlib.nullcontext()
+            else:
+                return torch.autocast(
+                    device_type=device.type,
+                    dtype=getattr(torch, dtype.value),
+                )
 
-    import transformer_engine.pytorch as te
-    from transformer_engine.common.recipe import DelayedScaling, Format, MXFP8BlockScaling, NVFP4BlockScaling
+        import transformer_engine.pytorch as te
+        from transformer_engine.common.recipe import DelayedScaling, Format, MXFP8BlockScaling, NVFP4BlockScaling
 
-    match dtype:
-        case AMPDtype.fp8:
-            # E4M3 during forward pass, E5M2 during backward pass
-            recipe = DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max")
-        case AMPDtype.mxfp8:
-            recipe = MXFP8BlockScaling(fp8_format=Format.E4M3)
-        case AMPDtype.nvfp4:
-            recipe = NVFP4BlockScaling()
+        match dtype:
+            case AMPDtype.fp8:
+                # E4M3 during forward pass, E5M2 during backward pass
+                recipe = DelayedScaling(fp8_format=Format.HYBRID, amax_history_len=16, amax_compute_algo="max")
+            case AMPDtype.mxfp8:
+                recipe = MXFP8BlockScaling(fp8_format=Format.E4M3)
+            case AMPDtype.nvfp4:
+                recipe = NVFP4BlockScaling()
 
-    return te.autocast(recipe=recipe)
+        return te.autocast(recipe=recipe)
+
+    return wrapped

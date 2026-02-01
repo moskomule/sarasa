@@ -196,7 +196,7 @@ class Trainer:
             }
             target = target.to(self.device, non_blocking=(self.device.type == "cuda"))
 
-            with self.amp_context:
+            with self.amp_context():
                 pred = self.model(**input_dict)
                 loss = self.loss_fn(pred.flatten(0, 1), target.flatten(0, 1)) / valid_tokens
 
