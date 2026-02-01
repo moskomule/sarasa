@@ -27,7 +27,7 @@ jobs:
         run: |
           uv venv
           uv pip install setuptools --upgrade # to avoid build issues
-          uv sync --dev --extra cpu
+          uv sync --extra cpu --only-dev
 
       - name: Pytest
         run: uv run pytest
