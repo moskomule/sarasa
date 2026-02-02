@@ -61,6 +61,7 @@ class CausalSelfAttention(nn.Module):
 
         # todo: support varlen etc and kv caching
         self.attn = SDPAttention(is_causal=True, enable_gqa=self.num_heads != self.num_kv_heads)
+        self.ht_transpose = True
 
     def forward(
         self,
@@ -77,8 +78,12 @@ class CausalSelfAttention(nn.Module):
         # Apply Rotary Embeddings to queries and keys to get relative positional encoding
         cos, sin = cos_sin
         q, k = RoPE.apply(q, cos, sin), RoPE.apply(k, cos, sin)
-        q, k = self.qk_norm(q), self.qk_norm(k)
-        y = self.attn(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2))  # (B, n_head, T, head_dim)
-        y = y.transpose(1, 2).contiguous().view(B, T, -1)
+        q, k = self.qk_norm(q), self.qk_norm(k)  # (B, T, n_head, head_dim)
+        if self.ht_transpose:
+            q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)  # (B, n_head, T, head_dim)
+        y = self.attn(q, k, v)
+        if self.ht_transpose:
+            y = y.transpose(1, 2)
+        y = y.contiguous().view(B, T, -1)
         y = self.c_proj(y)
         return y

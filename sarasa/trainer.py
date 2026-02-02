@@ -65,8 +65,8 @@ class Trainer:
             if use_transformer_engine:
                 from sarasa.amp import to_te_linear_
 
-                logger.info("Converting linear layers to TE float-8/4 compatible modules")
-                to_te_linear_(self.model)
+                logger.info(f"Converting linear layers to {config.train.fp8_backend} compatible layers")
+                to_te_linear_(self.model, backend=config.train.fp8_backend)
 
         # following torchtitan, (S)AC -> compilation -> distributed wrapping
         if config.train.use_sac:
@@ -110,7 +110,12 @@ class Trainer:
         self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
         logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
-        self.amp_context = amp_context(config.train.amp_dtype, self.device, config.distributed.name == "fsdp")
+        self.amp_context = amp_context(
+            config.train.amp_dtype,
+            self.device,
+            config.distributed.name == "fsdp",
+            config.train.fp8_backend,
+        )
         # todo: setup profiler context
         self.profile_context = contextlib.nullcontext()
 

@@ -53,6 +53,7 @@ flash_attn = [
 ]
 fp8 = [
     "transformer-engine",
+    "torchao>=0.15.0",
 ]
 
 [tool.uv]

@@ -98,7 +98,7 @@ class Train:
     amp_dtype: AMPDtype = AMPDtype.bfloat16
     """Dtype used for automatic mixed precision training
     
-    fp8, mxfp8, and nvfp4 require transformer-engine. `uv sync --extra float8`
+    fp8, mxfp8, and nvfp4 require transformer-engine (available via `sarasa[fp8]`).
     """
 
     compile: bool = False
@@ -123,6 +123,13 @@ class Train:
 
     use_sac: bool = False
     """Whether to use selective activation checkpointing."""
+
+    fp8_backend: Literal["none", "torchao", "transformer_engine"] = "none"
+    """Backend to use for float-8/4 training. 'none' disables fp8/4 training."""
+
+    def __post_init__(self):
+        if self.amp_dtype in {AMPDtype.fp8, AMPDtype.mxfp8, AMPDtype.nvfp4} and self.fp8_backend == "none":
+            raise ValueError("fp8_backend must be set to 'torchao' or 'transformer_engine' when using fp8/4 amp_dtype.")
 
 
 @dataclasses.dataclass
