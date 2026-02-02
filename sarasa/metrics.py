@@ -66,6 +66,10 @@ def get_peak_flops(device_name: str) -> float:
         # data from: "https://resources.nvidia.com/en-us-l40s/l40s-datasheet-28413"
         return 362e12
 
+    elif "GB10" in device_name:
+        # estimated from nvfp4's specs
+        return 125e12
+
     else:  # for other GPU types, assume A100
         logger.warning(f"Peak flops undefined for: {device_name}, fallback to A100")
         return 312e12
