@@ -16,7 +16,6 @@ class RMSNorm(torch.nn.RMSNorm):
     def __init__(
         self,
         normalized_shape: int,
-        eps: float,
     ):
         super().__init__(normalized_shape, eps=None, elementwise_affine=False)
 
@@ -46,7 +45,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn = CausalSelfAttention(config, layer_idx)
         self.mlp = MLP(config)
-        self.norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)
+        self.norm = RMSNorm(config.hidden_dim)
 
     def forward(
         self,
