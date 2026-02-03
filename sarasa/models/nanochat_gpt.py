@@ -8,7 +8,17 @@ from torch.nn import functional as F
 
 from sarasa.models import BaseModel, ModelConfig
 from sarasa.models.attention import CausalSelfAttention
-from sarasa.models.utils import RMSNorm, RoPE
+from sarasa.models.utils import RoPE
+
+
+class RMSNorm(torch.nn.RMSNorm):
+    # RMSNorm without affine parameters
+    def __init__(
+        self,
+        normalized_shape: int,
+        eps: float,
+    ):
+        super().__init__(normalized_shape, eps=None, elementwise_affine=False)
 
 
 class MLP(nn.Module):
@@ -36,7 +46,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn = CausalSelfAttention(config, layer_idx)
         self.mlp = MLP(config)
-        self.norm = RMSNorm(config.hidden_dim)
+        self.norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)
 
     def forward(
         self,
@@ -76,7 +86,7 @@ class GPT(BaseModel):
         self.token_emb = nn.Embedding(padded_vocab_size, self.hidden_dim)
         self.blocks = nn.ModuleList([Block(config, layer_idx) for layer_idx in range(self.num_layers)])
         self.lm_head = nn.Linear(self.hidden_dim, padded_vocab_size, bias=False)
-        self.norm = RMSNorm(self.hidden_dim)
+        self.norm = RMSNorm(self.hidden_dim, eps=config.rms_eps)
         # Per-layer learnable scalars (inspired by modded-nanogpt)
         # resid_lambdas: scales the residual stream at each layer (init 1.0 = neutral)
         # x0_lambdas: blends initial embedding back in at each layer (init 0.0 = disabled)
