@@ -69,7 +69,6 @@ class Trainer:
                 block.compile(fullgraph=True, dynamic=False)
             self.model.compile(dynamic=False)
             torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
-            self.loss_fn.compile()
 
         if world_size() > 1:
             apply_distributed(
