@@ -21,7 +21,8 @@ class ModelConfig:
     vocab_size: int | None = None  # set later based on tokenizer
     seq_len: int | None = None  # set later based on data config
     qk_norm: bool = False  # whether to use RMSNorm on q/k
-    rms_eps: float = 1e-5  # epsilon for RMSNorm
+    rms_eps: float | None = None  # epsilon for RMSNorm, default to library default if None
+    rms_learnable: bool = False  # whether RMSNorm has learnable scale parameter
 
     def __post_init__(self):
         # infer hidden_dim, num_heads, num_kv_heads if not provided using the rules presented in nanochat
