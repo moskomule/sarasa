@@ -85,7 +85,7 @@ class GPT(BaseModel):
         self.token_emb = nn.Embedding(padded_vocab_size, self.hidden_dim)
         self.blocks = nn.ModuleList([Block(config, layer_idx) for layer_idx in range(self.num_layers)])
         self.lm_head = nn.Linear(self.hidden_dim, padded_vocab_size, bias=False)
-        self.norm = RMSNorm(self.hidden_dim, eps=config.rms_eps)
+        self.norm = RMSNorm(self.hidden_dim)
         # Per-layer learnable scalars (inspired by modded-nanogpt)
         # resid_lambdas: scales the residual stream at each layer (init 1.0 = neutral)
         # x0_lambdas: blends initial embedding back in at each layer (init 0.0 = disabled)
