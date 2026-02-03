@@ -8,7 +8,16 @@ from torch.nn import functional as F
 
 from sarasa.models import BaseModel, ModelConfig
 from sarasa.models.attention import CausalSelfAttention
-from sarasa.models.utils import RMSNorm, RoPE
+from sarasa.models.utils import RoPE
+
+
+class RMSNorm(torch.nn.RMSNorm):
+    # RMSNorm without affine parameters
+    def __init__(
+        self,
+        normalized_shape: int,
+    ):
+        super().__init__(normalized_shape, eps=None, elementwise_affine=False)
 
 
 class MLP(nn.Module):

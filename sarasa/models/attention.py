@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from sarasa.models import ModelConfig
-from sarasa.models.utils import RMSNorm, RoPE
+from sarasa.models.utils import RoPE
 
 
 class SDPAttention(nn.Module):
@@ -57,7 +57,11 @@ class CausalSelfAttention(nn.Module):
         self.c_k = nn.Linear(self.hidden_dim, self.num_kv_heads * self.head_dim, bias=False)
         self.c_v = nn.Linear(self.hidden_dim, self.num_kv_heads * self.head_dim, bias=False)
         self.c_proj = nn.Linear(self.hidden_dim, self.hidden_dim, bias=False)
-        self.qk_norm = RMSNorm(self.head_dim) if config.qk_norm else nn.Identity()
+        self.qk_norm = (
+            nn.RMSNorm(self.head_dim, eps=config.rms_eps, elementwise_affine=config.rms_learnable)
+            if config.qk_norm
+            else nn.Identity()
+        )
 
         # todo: support varlen etc and kv caching
         self.attn = SDPAttention(is_causal=True, enable_gqa=self.num_heads != self.num_kv_heads)

@@ -7,6 +7,7 @@ import torch
 import torch.distributed as dist
 from loguru import logger
 from torch.distributed.elastic.multiprocessing.errors import record
+from torch.nn import functional as F
 
 from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
@@ -48,9 +49,6 @@ class Trainer:
         vocab_size = len(self.tokenizer)
         self.config.model.vocab_size = vocab_size
 
-        # todo: support other loss functions
-        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX, reduction="sum")
-
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
             self.model = self.config.model.create()
@@ -68,9 +66,9 @@ class Trainer:
         if config.train.compile:
             logger.info("Compiling the model")
             for block in self.model.blocks:
-                block.compile(fullgraph=True)
+                block.compile(fullgraph=True, dynamic=False)
             self.model.compile(dynamic=False)
-            self.loss_fn.compile()
+            torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
 
         if world_size() > 1:
             apply_distributed(
@@ -197,7 +195,7 @@ class Trainer:
 
             with self.amp_context:
                 pred = self.model(**input_dict)
-                loss = self.loss_fn(pred.flatten(0, 1), target.flatten(0, 1)) / valid_tokens
+                loss = self.loss_fn(pred, target) / valid_tokens
 
             del pred
             loss.backward()
@@ -239,6 +237,18 @@ class Trainer:
                 "grad_norm": grad_norm.item() if grad_norm >= 0 else float("nan"),
                 "lr": lr,
             },
+        )
+
+    def loss_fn(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+    ) -> torch.Tensor:
+        return F.cross_entropy(
+            pred.flatten(0, 1).float(),
+            target.flatten(0, 1),
+            ignore_index=IGNORE_INDEX,
+            reduction="sum",
         )
 
     def evaluate(self):
