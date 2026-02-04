@@ -13,7 +13,7 @@ config = Config.create(
     ),
     train=Train(
         local_batch_size=32,
-        global_batch_size=256,
+        global_batch_size=1024,
         dtype="bfloat16",
         use_sac=True,
     ),
