@@ -11,8 +11,10 @@ from loguru import logger
 from torch import distributed as dist
 from torch import nn
 
+from sarasa.config import Config, Distributed
 
-def setup_logger(config) -> None:
+
+def setup_logger(config: Config) -> None:
     logger.remove()
     if config.debug:
         logger_format = f"<blue>RANK={rank()}</blue> | " + (
@@ -128,7 +130,7 @@ def update_timeout(
 
 
 def apply_distributed(
-    config,
+    config: Distributed,
     model: nn.Module,
     device: torch.device,
     compile: bool,
