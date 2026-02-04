@@ -86,13 +86,15 @@ From the command line, you can specify which custom optimizer to use:
 python script.py optim:custom_optim --optim.lr 0.001 ...
 ```
 
+(As tyro automatically converts config class names from CamelCase to snake_case, config class names are recommended not to include `Config` suffixes.)
+
 ### Config File Example
 
 It's very simple.
 IDE autocompletion will help you.
 
 ```python
-from sarasa.config import Config, Data, LRScheduler, Model, Train, LRScheduler
+from sarasa import Config, Data, LRScheduler, Model, Train, LRScheduler
 from custom_optim import CustomOptim
 
 # only one Config instance should be defined in each config file
