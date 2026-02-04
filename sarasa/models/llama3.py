@@ -111,7 +111,7 @@ class Llama3(BaseModel):
         embedding_params = list(self.token_emb.parameters())
         lm_head_params = list(self.output.parameters())
         rms_norm_params = [
-            mod.weight for mod in self.modules() if isinstance(mod, nn.RMSNorm) if mod.weight.requires_grad
+            mod.weight for mod in self.modules() if isinstance(mod, nn.RMSNorm) and mod.elementwise_affine
         ]
         assert len(list(self.parameters())) == (
             len(matrix_params) + len(embedding_params) + len(lm_head_params) + len(rms_norm_params)
