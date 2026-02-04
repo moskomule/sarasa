@@ -3,6 +3,7 @@ import gc
 import os
 import sys
 import time
+import typing
 from datetime import timedelta
 from functools import cache
 
@@ -11,7 +12,8 @@ from loguru import logger
 from torch import distributed as dist
 from torch import nn
 
-from sarasa.config import Config, Distributed
+if typing.TYPE_CHECKING:
+    from sarasa.config import Config, Distributed
 
 
 def setup_logger(config: Config) -> None:
