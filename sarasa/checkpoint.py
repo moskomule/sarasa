@@ -110,3 +110,7 @@ class Checkpointer:
     def close(self) -> None:
         if self.stager is not None:
             self.stager.close()
+
+        if self.pg is not None:
+            dist.destroy_process_group(self.pg)
+            self.pg = None

@@ -117,14 +117,6 @@ class Trainer:
                     f"Failed to activate FA4 flash attention: {e}. Install sarasa with `flash_attn` extra for better performance."
                 )
 
-    def __del__(self) -> None:
-        # cleanup distributed
-        if world_size() > 1:
-            try:
-                dist.destroy_process_group()
-            except Exception as e:
-                logger.warning(f"Failed to destroy process group: {e}")
-
     @record
     def train(self):
         try:
@@ -266,3 +258,10 @@ class Trainer:
 
         if self.metrics_processor is not None:
             self.metrics_processor.close()
+
+        # cleanup distributed
+        if world_size() > 1:
+            try:
+                dist.destroy_process_group()
+            except Exception as e:
+                logger.warning(f"Failed to destroy process group: {e}")
