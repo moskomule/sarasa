@@ -23,6 +23,8 @@ uv add sarasa[cpu|cu128|cu130]
 - Async distributed checkpoint saving
 
 - [ ] Checkpoint loading
+- [ ] FP8 training
+- [ ] Profiling
 
 ## Usage
 
@@ -77,6 +79,7 @@ if __name__ == "__main__":
     trainer.train()
 ```
 
+Thanks to [tyro](https://github.com/brentyi/tyro)'s type support, Sarasa can automatically recognize multiple custom optimizer types.
 From the command line, you can specify which custom optimizer to use:
 
 ```bash
@@ -85,7 +88,8 @@ python script.py optim:custom_optim --optim.lr 0.001 ...
 
 ### Config File Example
 
-It's very simple. IDE autocompletion will help you.
+It's very simple.
+IDE autocompletion will help you.
 
 ```python
 from sarasa.config import Config, Data, LRScheduler, Model, Train, LRScheduler
@@ -112,4 +116,4 @@ config = Config.create(
 
 ## Acknowledgements
 
-This project is heavily inspired by and borrows code from `torchtitan`.
+This project is heavily inspired by and borrows code from [torchtitan](https://github.com/pytorch/torchtitan).
