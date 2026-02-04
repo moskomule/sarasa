@@ -111,6 +111,12 @@ class Checkpointer:
         if self.stager is not None:
             self.stager.close()
 
+        if self.save_future is not None:
+            self.save_future.result()
+
         if self.pg is not None:
             dist.destroy_process_group(self.pg)
             self.pg = None
+
+    def __del__(self):
+        self.close()
