@@ -68,7 +68,7 @@ class Trainer:
             for block in self.model.blocks:
                 block.compile(fullgraph=True, dynamic=False)
             self.model.compile(dynamic=False)
-            torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
+            self.loss_fn = torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
 
         if world_size() > 1:
             apply_distributed(
@@ -116,14 +116,6 @@ class Trainer:
                 logger.warning(
                     f"Failed to activate FA4 flash attention: {e}. Install sarasa with `flash_attn` extra for better performance."
                 )
-
-    def __del__(self) -> None:
-        # cleanup distributed
-        if world_size() > 1:
-            try:
-                dist.destroy_process_group()
-            except Exception as e:
-                logger.warning(f"Failed to destroy process group: {e}")
 
     @record
     def train(self):
@@ -266,3 +258,13 @@ class Trainer:
 
         if self.metrics_processor is not None:
             self.metrics_processor.close()
+
+        # cleanup distributed
+        if world_size() > 1:
+            try:
+                dist.destroy_process_group()
+            except Exception as e:
+                logger.warning(f"Failed to destroy process group: {e}")
+
+    def __del__(self):
+        self.close()

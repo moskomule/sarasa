@@ -3,6 +3,7 @@ import gc
 import os
 import sys
 import time
+import typing
 from datetime import timedelta
 from functools import cache
 
@@ -11,8 +12,11 @@ from loguru import logger
 from torch import distributed as dist
 from torch import nn
 
+if typing.TYPE_CHECKING:
+    from sarasa.config import Config, Distributed
 
-def setup_logger(config) -> None:
+
+def setup_logger(config: Config) -> None:
     logger.remove()
     if config.debug:
         logger_format = f"<blue>RANK={rank()}</blue> | " + (
@@ -128,7 +132,7 @@ def update_timeout(
 
 
 def apply_distributed(
-    config,
+    config: Distributed,
     model: nn.Module,
     device: torch.device,
     compile: bool,

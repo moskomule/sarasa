@@ -107,10 +107,12 @@ class Llama3(BaseModel):
                 mod.reset_parameters()
 
     def param_groups(self) -> dict[str, list[nn.Parameter]]:
-        matrix_params = list(self.blocks.parameters())
+        matrix_params = [param for param in self.blocks.parameters() if param.ndim == 2]
         embedding_params = list(self.token_emb.parameters())
         lm_head_params = list(self.output.parameters())
-        rms_norm_params = [mod.weight for mod in self.modules() if isinstance(mod, nn.RMSNorm)]
+        rms_norm_params = [
+            mod.weight for mod in self.modules() if isinstance(mod, nn.RMSNorm) and mod.elementwise_affine
+        ]
         assert len(list(self.parameters())) == (
             len(matrix_params) + len(embedding_params) + len(lm_head_params) + len(rms_norm_params)
         )
