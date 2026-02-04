@@ -265,3 +265,6 @@ class Trainer:
                 dist.destroy_process_group()
             except Exception as e:
                 logger.warning(f"Failed to destroy process group: {e}")
+
+    def __del__(self):
+        self.close()
