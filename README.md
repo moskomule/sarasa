@@ -52,10 +52,9 @@ Here's an example of using a custom optimizer:
 
 ```python
 from sarasa import Trainer, Config
+from custom_optim import CustomOptimizer, CustomOptimizer2
 
-class CustomOptimizer(torch.optim.Optimizer):
-    ...
-
+@dataclass
 class CustomOptim:
     lr: float = ...
 
@@ -64,13 +63,16 @@ class CustomOptim:
     ) -> torch.optim.Optimizer:
         return CustomOptimizer(model.parameters(), lr=self.lr, ...)
 
+@dataclass
 class CustomOptim2:
     lr: float = ...
+    awesome_option: int = 42
 
     def create(self,
                model: torch.nn.Module
     ) -> torch.optim.Optimizer:
-        return CustomOptimizer(model.parameters(), lr=self.lr, ...)
+        return CustomOptimizer2(model.parameters(), lr=self.lr, 
+                                awesome_option=self.awesome_option)
 
 
 if __name__ == "__main__":
