@@ -7,6 +7,8 @@ from typing import Literal
 
 import torch
 
+from sarasa.utils import world_size
+
 """
 Variable configuration dataclasses for model, optimizer, lr scheduler, and data
 These classes have `create` methods to instantiate the actual objects
@@ -118,6 +120,11 @@ class Train:
 
     use_sac: bool = False
     """Whether to use selective activation checkpointing."""
+
+    def __post_init__(self):
+        assert self.global_batch_size % self.local_batch_size == 0
+        assert self.global_batch_size % world_size() == 0
+        assert self.global_batch_size >= self.local_batch_size * world_size()
 
 
 @dataclasses.dataclass

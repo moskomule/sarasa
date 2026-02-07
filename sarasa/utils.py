@@ -38,6 +38,11 @@ def setup_logger(config: Config) -> None:
         # log to stderr only for rank 0
         logger.add(sys.stderr, backtrace=True, diagnose=True, level="INFO" if rank() == 0 else "ERROR")
 
+        if world_size() > 1:
+            logger.info(
+                "Logger is set up for distributed training. Only rank 0 will log messages. Use --debug for more verbose logging."
+            )
+
 
 @contextlib.contextmanager
 def set_dtype(

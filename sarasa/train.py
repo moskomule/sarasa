@@ -13,7 +13,15 @@ from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
 from sarasa.metrics import MetricsProcessor
-from sarasa.utils import GarbageCollector, apply_distributed, init_distributed, set_dtype, update_timeout, world_size
+from sarasa.utils import (
+    GarbageCollector,
+    apply_distributed,
+    init_distributed,
+    set_dtype,
+    setup_logger,
+    update_timeout,
+    world_size,
+)
 
 IGNORE_INDEX = -100
 
@@ -25,6 +33,10 @@ class Trainer:
         config: Config,
     ) -> None:
         self.config = config
+
+        # only rank 0 logs
+        setup_logger(config)
+
         logger.info(f"Initializing Trainer with config: {self.config}")
 
         # set seed
