@@ -25,6 +25,7 @@ uv add sarasa[cpu|cu128|cu130]
 - [ ] Checkpoint loading
 - [ ] FP8 training
 - [ ] Profiling
+- [ ] Post-training
 
 ## Usage
 
@@ -66,13 +67,11 @@ class CustomOptim:
 @dataclass
 class CustomOptim2:
     lr: float = ...
-    awesome_option: int = 42
 
     def create(self,
                model: torch.nn.Module
     ) -> torch.optim.Optimizer:
-        return CustomOptimizer2(model.parameters(), lr=self.lr, 
-                                awesome_option=self.awesome_option)
+        return CustomOptimizer2(model.parameters(), lr=self.lr, ...)
 
 
 if __name__ == "__main__":
@@ -86,6 +85,8 @@ From the command line, you can specify which custom optimizer to use:
 
 ```bash
 python script.py optim:custom_optim --optim.lr 0.001 ...
+# or
+python script.py optim:custom_optim2 --optim.lr 0.002 ...
 ```
 
 (As tyro automatically converts config class names from CamelCase to snake_case, config class names are recommended not to include `Config` suffixes.)
