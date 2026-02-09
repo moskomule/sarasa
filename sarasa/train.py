@@ -12,6 +12,7 @@ from torch.nn import functional as F
 from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
+from sarasa.evaluate import Evaluator
 from sarasa.metrics import MetricsProcessor
 from sarasa.utils import (
     GarbageCollector,
@@ -55,10 +56,9 @@ class Trainer:
         # setup data and tokenizer -> use vocab size for model setup
         data = config.data.create(batch_size=config.train.local_batch_size)
         self.data_loader = data["train_loader"]  # setup data loader
-        self.val_loader = data.get("val_loader", None)  # setup eval data loader
-        self.tokenizer = data["tokenizer"]  # setup tokenizer
+        val_loader = data.get("val_loader", None)
 
-        vocab_size = len(self.tokenizer)
+        vocab_size = len(data["tokenizer"])
         self.config.model.vocab_size = vocab_size
 
         # setup model, optimizer, lr scheduler
@@ -96,10 +96,14 @@ class Trainer:
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
-        # setup metrics and checkpointer
-        # todo: configure num_flops_per_token
+        # setup metrics, checkpointer, evaluator
         self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
+        self.evaluator = (
+            Evaluator(val_loader, self.amp_context, self.metrics_processor, self.loss_fn, self.device)
+            if val_loader is not None
+            else None
+        )
 
         dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
         logger.info(
@@ -150,7 +154,9 @@ class Trainer:
                         self.checkpointer.save(self.step)
 
                     if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
-                        self.evaluate()
+                        if self.evaluator is not None:
+                            logger.info("Starting evaluation...")
+                            self.evaluator.evaluate(self.model, self.step)
 
                     if world_size() > 1 and self.step == 1:
                         update_timeout(self.config.distributed.train_timeout_seconds, self.device)
@@ -254,15 +260,6 @@ class Trainer:
             ignore_index=IGNORE_INDEX,
             reduction="sum",
         )
-
-    def evaluate(self):
-        raise NotImplementedError
-
-    def evaluation_step(
-        self,
-        batch_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
-    ) -> None:
-        raise NotImplementedError
 
     def close(self) -> None:
         if self.checkpointer is not None:
