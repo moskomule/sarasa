@@ -61,7 +61,6 @@ class GPT(BaseModel):
     def __init__(
         self,
         config: ModelConfig,
-        pad_vocab_size_to=64,
     ):
         """
         NOTE a major footgun: this __init__ function runs in meta device context (!!)
@@ -69,6 +68,8 @@ class GPT(BaseModel):
         => We actually initialize all data (parameters, buffers, etc.) in init_weights() instead.
         """
         super().__init__()
+        pad_vocab_size_to = config.extra.get("pad_vocab_size_to", 64)
+
         self.config = config
         self.num_heads = config.num_heads
         self.hidden_dim = config.hidden_dim

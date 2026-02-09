@@ -58,10 +58,11 @@ class Llama3(BaseModel):
     def __init__(
         self,
         config: ModelConfig,
-        multiple_of: int = 1024,
-        ffn_dim_multiplier: float | None = 1.4,
     ):
         super().__init__()
+        multiple_of = config.extra.get("multiple_of", 1024)
+        ffn_dim_multiplier = config.extra.get("ffn_dim_multiplier", 1.4)
+
         self.config = config
         self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
         self.max_seq_len = config.seq_len * 16

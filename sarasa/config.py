@@ -286,6 +286,9 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
             ],
             default=loaded_config,
             console_outputs=(rank() == 0),
+            config=(tyro.conf.UsePythonSyntaxForLiteralCollections,),
+            # UsePythonSyntaxForLiteralCollections allows dict/list/tuple to be specified in CLI arguments
+            # e.g., --model.extra '{"key": "value"}' or --model.extra '["val1", "val2"]'
         )
 
 
