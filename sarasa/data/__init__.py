@@ -28,6 +28,7 @@ class DataConfig:
     pin_memory: bool = True
 
     cache_dir: str | None = None
+    """Path to cache directory for datasets. If None, default cache directory is used."""
 
     def create(
         self,

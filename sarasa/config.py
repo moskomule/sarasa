@@ -319,6 +319,7 @@ __all__ = [
     "LRScheduler",
     "Data",
     "Train",
+    "Evaluate",
     "Metrics",
     "Checkpoint",
     "DDP",
