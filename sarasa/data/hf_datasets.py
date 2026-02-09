@@ -1,7 +1,8 @@
 import enum
-from typing import Any, Callable
+from typing import Callable
 
 import torch
+from datasets import IterableDataset as HFIterableDataset
 from datasets import disable_progress_bars, load_dataset
 from datasets.distributed import split_dataset_by_node
 from loguru import logger
@@ -19,10 +20,11 @@ class Datasets(enum.StrEnum):
     def load(
         self,
         cache_dir: str | None,
-    ) -> Any:
+        val_size: int,
+    ) -> tuple[HFIterableDataset, HFIterableDataset]:
         match self:
             case Datasets.c4:
-                return load_dataset(
+                ds = load_dataset(
                     "allenai/c4",
                     name="en",
                     split="train",
@@ -30,7 +32,7 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu:
-                return load_dataset(
+                ds = load_dataset(
                     "HuggingFaceFW/fineweb-edu",
                     name="default",
                     split="train",
@@ -38,7 +40,7 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu_100b:
-                return load_dataset(
+                ds = load_dataset(
                     "HuggingFaceFW/fineweb-edu",
                     name="sample-100BT",
                     split="train",
@@ -46,7 +48,7 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu_dedup:
-                return load_dataset(
+                ds = load_dataset(
                     "HuggingFaceTB/smollm-corpus",
                     "fineweb-edu-dedup",
                     split="train",
@@ -54,31 +56,27 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
 
+        val_ds = ds.take(val_size)
+        train_ds = ds.skip(val_size)
+        return train_ds, val_ds
+
 
 class HFTextDataset(IterableDataset):
     def __init__(
         self,
-        dataset_name: Datasets | str,
-        split: str,
+        dataset: HFIterableDataset,
         tokenizer: Callable[[str], list[int]],
         seq_len: int,
         infinite: bool = True,
-        cache_dir: str | None = None,
     ):
         if rank() != 0:
             disable_progress_bars()
-        self.dataset_name = dataset_name
-        if dataset_name in Datasets:
-            ds = Datasets(dataset_name).load(cache_dir=cache_dir)
 
-        else:
-            logger.warning(f"Unknown dataset: {dataset_name}. Trying to use `load_dataset` directly.")
-            ds = load_dataset(dataset_name, split=split, streaming=True, cache_dir=cache_dir)
-
-        self.data = split_dataset_by_node(ds, rank=rank(), world_size=world_size())
+        self.data = split_dataset_by_node(dataset, rank=rank(), world_size=world_size())
         self.tokenizer = tokenizer
         self.seq_len = seq_len
         self.token_buffer: list[int] = []
+        self.infinite = infinite
 
     def _text_processor(
         self,
@@ -106,10 +104,9 @@ class HFTextDataset(IterableDataset):
                     yield {"input": input}, label
 
             if not self.infinite:
-                logger.warning(f"Dataset {self.dataset_name} has run out of data")
                 break
             else:
                 # Reset offset for the next iteration
-                logger.warning(f"Dataset {self.dataset_name} is being re-looped")
+                logger.warning("Dataset is being re-looped")
                 if hasattr(self.data, "set_epoch") and hasattr(self.data, "epoch"):
                     self.data.set_epoch(self.data.epoch + 1)

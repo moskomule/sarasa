@@ -100,7 +100,7 @@ class Train:
 
     compile: bool = False
 
-    gc_freq: int = 50
+    gc_freq: int = 500
     """Garbage collection frequency (in steps). If -1, no periodic GC is performed."""
 
     local_batch_size: int = 32
@@ -115,9 +115,6 @@ class Train:
     use_fa4: bool = True
     """Whether to use FA4 flash attention if available."""
 
-    val_freq: int = -1
-    """Validation frequency (in steps). If -1, no validation is performed."""
-
     use_sac: bool = False
     """Whether to use selective activation checkpointing."""
 
@@ -128,15 +125,28 @@ class Train:
 
 
 @dataclasses.dataclass
+class Evaluate:
+    freq: int = -1
+    """Evaluation frequency (in steps). If -1, no evaluation is performed."""
+
+    val_size: int = 0
+    """Number of samples in the evaluation set. If 0, no evaluation is performed.
+    Must be divisible by (local_batch_size * num_devices)."""
+
+    local_batch_size: int = None
+    """local (per device) batch size for evaluation. If None, uses train.local_batch"""
+
+
+@dataclasses.dataclass
 class Metrics:
-    log_freq: int = 10
+    freq: int = 10
     use_tensorboard: bool = False
     all_node: bool = False
 
 
 @dataclasses.dataclass
 class Checkpoint:
-    save_freq: int = 1000
+    freq: int = 1000
     async_mode: Literal["none", "default", "mem_pinned"] = "default"
 
 
@@ -182,6 +192,7 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
 
     # static components
     train: Train = dataclasses.field(default_factory=Train)
+    evaluate: Evaluate = dataclasses.field(default_factory=Evaluate)
     metrics: Metrics = dataclasses.field(default_factory=Metrics)
     checkpoint: Checkpoint = dataclasses.field(default_factory=Checkpoint)
     distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
@@ -205,6 +216,15 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 self.model.seq_len = self.data.seq_len
             if self.model.seq_len is None:
                 raise ValueError("seq_len must be specified in either model or data configuration.")
+
+        if self.evaluate.local_batch_size is None:
+            self.evaluate.local_batch_size = self.train.local_batch_size
+
+        if self.evaluate.freq > 0:
+            assert self.evaluate.val_size > 0, "evaluate.val_size must be > 0 if evaluate.freq > 0"
+            assert self.evaluate.val_size % (self.evaluate.local_batch_size * world_size()) == 0, (
+                "evaluate.val_size must be divisible by (evaluate.local_batch_size * num_devices)"
+            )
 
         if isinstance(self.distributed, FSDP):
             self.distributed.dtype = self.distributed.dtype or self.train.dtype

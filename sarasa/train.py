@@ -54,7 +54,7 @@ class Trainer:
         init_distributed(config.distributed.backend, config.distributed.init_timeout_seconds)
 
         # setup data and tokenizer -> use vocab size for model setup
-        data = config.data.create(batch_size=config.train.local_batch_size)
+        data = config.data.create(batch_size=config.train.local_batch_size, val_cfg=config.evaluate)
         self.data_loader = data["train_loader"]  # setup data loader
         val_loader = data.get("val_loader", None)
 
@@ -98,7 +98,7 @@ class Trainer:
 
         # setup metrics, checkpointer, evaluator
         self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
-        self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
+        self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.freq > 0 else None
         self.evaluator = (
             Evaluator(val_loader, self.amp_context, self.metrics_processor, self.loss_fn, self.device)
             if val_loader is not None
@@ -153,10 +153,9 @@ class Trainer:
                     if self.checkpointer is not None:
                         self.checkpointer.save(self.step)
 
-                    if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
-                        if self.evaluator is not None:
-                            logger.info("Starting evaluation...")
-                            self.evaluator.evaluate(self.model, self.step)
+                    if self.config.evaluate.freq > 0 and self.step % self.config.evaluate.freq == 0:
+                        logger.info("Starting evaluation...")
+                        self.evaluator.evaluate(self.model, self.step)
 
                     if world_size() > 1 and self.step == 1:
                         update_timeout(self.config.distributed.train_timeout_seconds, self.device)
