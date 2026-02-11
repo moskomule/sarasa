@@ -18,6 +18,9 @@ if typing.TYPE_CHECKING:
     from sarasa.config import Config, Distributed
 
 
+IGNORE_INDEX = -100
+
+
 def setup_logger(config: Config) -> None:
     logger.remove()
     if config.debug:

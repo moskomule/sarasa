@@ -15,6 +15,7 @@ from sarasa.config import Config
 from sarasa.evaluate import Evaluator
 from sarasa.metrics import MetricsProcessor
 from sarasa.utils import (
+    IGNORE_INDEX,
     GarbageCollector,
     apply_distributed,
     init_distributed,
@@ -23,8 +24,6 @@ from sarasa.utils import (
     update_timeout,
     world_size,
 )
-
-IGNORE_INDEX = -100
 
 
 class Trainer:

@@ -5,8 +5,7 @@ import torch
 import torch.distributed as dist
 
 from sarasa.metrics import MetricsProcessor
-from sarasa.train import IGNORE_INDEX
-from sarasa.utils import world_size
+from sarasa.utils import IGNORE_INDEX, world_size
 
 
 class Evaluator:
