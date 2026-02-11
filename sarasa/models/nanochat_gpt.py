@@ -62,13 +62,11 @@ class GPT(BaseModel):
         self,
         config: ModelConfig,
     ):
-        """
-        NOTE a major footgun: this __init__ function runs in meta device context (!!)
-        Therefore, any calculations inside here are shapes and dtypes only, no actual data.
-        => We actually initialize all data (parameters, buffers, etc.) in init_weights() instead.
-        """
         super().__init__()
         pad_vocab_size_to = config.extra.get("pad_vocab_size_to", 64)
+        self.use_softcap = config.extra.get("use_softcap", False)
+        use_resid_lambdas = config.extra.get("use_resid_lambdas", False)
+        use_x0_lambdas = config.extra.get("use_x0_lambdas", False)
 
         self.config = config
         self.num_heads = config.num_heads
@@ -76,6 +74,7 @@ class GPT(BaseModel):
         self.seq_len = config.seq_len
         self.vocab_size = config.vocab_size
         self.num_layers = config.num_layers
+
         # For DDP, we want vocab_size divisible by world_size. Also, there are potential performance benefits, see:
         # https://huggingface.co/docs/transformers/main_classes/model#transformers.PreTrainedModel.resize_token_embeddings
         padded_vocab_size = ((self.vocab_size + pad_vocab_size_to - 1) // pad_vocab_size_to) * pad_vocab_size_to
@@ -87,17 +86,21 @@ class GPT(BaseModel):
         self.blocks = nn.ModuleList([Block(config, layer_idx) for layer_idx in range(self.num_layers)])
         self.lm_head = nn.Linear(self.hidden_dim, padded_vocab_size, bias=False)
         self.norm = RMSNorm(self.hidden_dim)
+
         # Per-layer learnable scalars (inspired by modded-nanogpt)
         # resid_lambdas: scales the residual stream at each layer (init 1.0 = neutral)
         # x0_lambdas: blends initial embedding back in at each layer (init 0.0 = disabled)
         # Separate parameters so they can have different optimizer treatment
-        self.resid_lambdas = nn.Parameter(torch.ones(self.num_layers))  # fake init, real init in init_weights()
-        self.x0_lambdas = nn.Parameter(torch.zeros(self.num_layers))  # fake init, real init in init_weights()
-        # To support meta device initialization, we init the rotary embeddings here, but it's just "fake" meta tensors only.
-        # As for rotary_seq_len, these rotary embeddings are pretty small/cheap in memory,
-        # so let's just over-compute them by 10X, but assert fail if we ever reach that amount.
-        # In the future we can dynamically grow the cache, for now it's fine.
-        self.rotary_seq_len = self.seq_len * 16  # 10X over-compute should be enough, TODO make nicer?
+        if use_resid_lambdas:
+            self.resid_lambdas = nn.Parameter(torch.ones(self.num_layers))  # fake init, real init in init_weights()
+        else:
+            self.register_buffer("resid_lambdas", torch.ones(self.num_layers), persistent=False)
+        if use_x0_lambdas:
+            self.x0_lambdas = nn.Parameter(torch.zeros(self.num_layers))  # fake init, real init in init_weights()
+        else:
+            self.register_buffer("x0_lambdas", torch.zeros(self.num_layers), persistent=False)
+
+        self.rotary_seq_len = self.seq_len
         cos, sin = RoPE.precompute(self.rotary_seq_len, config.head_dim)
         self.register_buffer("cos", cos, persistent=False)  # persistent=False means it's not saved to the checkpoint
         self.register_buffer("sin", sin, persistent=False)
@@ -152,8 +155,8 @@ class GPT(BaseModel):
         matrix_params = list(self.blocks.parameters())
         embedding_params = list(self.token_emb.parameters())
         lm_head_params = list(self.lm_head.parameters())
-        resid_params = [self.resid_lambdas]
-        x0_params = [self.x0_lambdas]
+        resid_params = [self.resid_lambdas] if self.resid_lambdas.requires_grad else []
+        x0_params = [self.x0_lambdas] if self.x0_lambdas.requires_grad else []
         assert len(list(self.parameters())) == (
             len(matrix_params) + len(embedding_params) + len(lm_head_params) + len(resid_params) + len(x0_params)
         )
@@ -172,15 +175,6 @@ class GPT(BaseModel):
     ) -> torch.Tensor:
         B, T = input.size()
 
-        # Grab the rotary embeddings for the current sequence length (they are of shape (1, seq_len, 1, head_dim/2))
-        assert T <= self.cos.size(1), (
-            f"Sequence length grew beyond the rotary embeddings cache: {T} > {self.cos.size(1)}"
-        )
-        assert input.device == self.cos.device, (
-            f"Rotary embeddings and idx are on different devices: {input.device} != {self.cos.device}"
-        )
-        assert self.cos.dtype == torch.bfloat16, "Rotary embeddings must be in bfloat16"
-        # if kv cache exists, we need to offset the rotary embeddings to the current position in the cache
         cos_sin = self.cos[:, :T], self.sin[:, :T]  # truncate cache to current sequence length
 
         # Forward the trunk of the Transformer
@@ -191,12 +185,19 @@ class GPT(BaseModel):
             x = resid_lambda * x + x0_lambda * x0
             x = block(x, cos_sin)
         x = self.norm(x)
-
-        # Forward the lm_head (compute logits)
-        softcap = 15  # smoothly cap the logits to the range [-softcap, softcap]
         logits = self.lm_head(x)  # (B, T, padded_vocab_size) <- very big tensor, large amount of memory
         logits = logits[..., : self.vocab_size]  # slice to remove padding
-        logits = logits.float()  # switch to fp32 for logit softcap and loss computation
-        logits = softcap * torch.tanh(logits / softcap)  # squash the logits
+        if self.use_softcap:
+            logits = self.softcap_logits(logits, softcap=15)
 
+        return logits
+
+    def softcap_logits(
+        self,
+        logits: torch.Tensor,
+        softcap: float = 15,
+    ) -> torch.Tensor:
+        # Softcap the logits to the range [-softcap, softcap]
+        logits = logits.float()  # switch to fp32 for logit softcap
+        logits = softcap * torch.tanh(logits / softcap)  # squash the logits
         return logits
