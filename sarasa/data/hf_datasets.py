@@ -1,5 +1,6 @@
 import enum
-from typing import Callable
+from collections.abc import Iterable
+from typing import Any, Callable, Literal
 
 import torch
 from datasets import IterableDataset as HFIterableDataset
@@ -8,7 +9,7 @@ from datasets.distributed import split_dataset_by_node
 from loguru import logger
 from torch.utils.data import IterableDataset
 
-from sarasa.utils import rank, world_size
+from sarasa.utils import IGNORE_INDEX, rank, world_size
 
 
 class Datasets(enum.StrEnum):
@@ -68,6 +69,8 @@ class HFTextDataset(IterableDataset):
         tokenizer: Callable[[str], list[int]],
         seq_len: int,
         infinite: bool = True,
+        strategy: Literal["default", "bos_aligned_crop", "bos_aligned_pad"] = "default",
+        buffer_size: int = 1_000,
     ):
         if rank() != 0:
             disable_progress_bars()
@@ -75,8 +78,10 @@ class HFTextDataset(IterableDataset):
         self.data = split_dataset_by_node(dataset, rank=rank(), world_size=world_size())
         self.tokenizer = tokenizer
         self.seq_len = seq_len
-        self.token_buffer: list[int] = []
+        self.buffer: list[int] | list[list[int]] = []
         self.infinite = infinite
+        self.strategy = strategy
+        self.buffer_size = buffer_size
 
     def _text_processor(
         self,
@@ -85,23 +90,86 @@ class HFTextDataset(IterableDataset):
         # Default text processor: extract 'text' field
         return sample["text"]
 
-    def __iter__(self):
+    def _default_iter(
+        self,
+        data_iter: Iterable[dict[str, Any]],
+    ):
         max_buffer_token_len = 1 + self.seq_len
 
-        while True:
-            for sample in iter(self.data):
-                # Use the dataset-specific text processor
+        for sample in data_iter:
+            # Use the dataset-specific text processor
+            sample_text = self._text_processor(sample)
+            sample_tokens = self.tokenizer.encode(sample_text)
+            self.buffer.extend(sample_tokens)
+
+            while len(self.buffer) >= max_buffer_token_len:
+                x = torch.LongTensor(self.buffer[:max_buffer_token_len])
+                # update tokens to the remaining tokens
+                self.buffer = self.buffer[max_buffer_token_len:]
+                input = x[:-1]
+                label = x[1:]
+                yield {"input": input}, label
+
+    def _bos_aligned_iter(
+        self,
+        data_iter: Iterable[dict[str, Any]],
+    ):
+        # repeat picking the longest sequences from the buffer,  that fit local buffer (max length seq_len + 1)
+        # if there's no sequence that can fit, pick the shortest one and crop it to fit / pad bos token to fit
+        # this strategy is used in nanochat
+
+        output_buffer: list[int] = []
+        pad_size = 0
+
+        for sample in iter(data_iter):
+            # fill the buffer
+            while len(self.buffer) < self.buffer_size:
                 sample_text = self._text_processor(sample)
                 sample_tokens = self.tokenizer.encode(sample_text)
-                self.token_buffer.extend(sample_tokens)
+                self.buffer.append(sample_tokens)
 
-                while len(self.token_buffer) >= max_buffer_token_len:
-                    x = torch.LongTensor(self.token_buffer[:max_buffer_token_len])
-                    # update tokens to the remaining tokens
-                    self.token_buffer = self.token_buffer[max_buffer_token_len:]
-                    input = x[:-1]
-                    label = x[1:]
-                    yield {"input": input}, label
+            self.buffer.sort(key=len, reverse=True)
+
+            i = 0
+            while i < len(self.buffer):
+                seq = self.buffer[i]
+                if len(output_buffer) + len(seq) <= self.seq_len + 1:
+                    output_buffer.extend(seq)
+                    self.buffer.pop(i)
+                else:
+                    i += 1
+
+            # if no sequence can fit, pick the shortest one and crop it to fit / pad bos token to fit
+            if len(output_buffer) < self.seq_len + 1:
+                if self.strategy == "bos_aligned_pad":
+                    pad_size = self.seq_len + 1 - len(output_buffer)
+                    output_buffer += [self.tokenizer.bos_token_id] * pad_size
+                else:
+                    seq = self.buffer[i]
+                    output_buffer.extend(seq)
+                    output_buffer = output_buffer[: self.seq_len + 1]
+                    self.buffer.pop(i)
+
+            assert len(output_buffer) == self.seq_len + 1
+
+            input = output_buffer[:-1]
+            label = output_buffer[1:]
+            if pad_size > 0:
+                label = label[:-pad_size] + [IGNORE_INDEX] * pad_size
+
+            yield {"input": input}, label
+
+            output_buffer = []
+            pad_size = 0
+
+    def __iter__(self):
+        while True:
+            data_iter = iter(self.data)
+            match self.strategy:
+                case "default":
+                    yield from self._default_iter(data_iter)
+                case "bos_aligned_crop" | "bos_aligned_pad":
+                    yield from self._bos_aligned_iter(data_iter)
 
             if not self.infinite:
                 break

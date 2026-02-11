@@ -1,7 +1,16 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 from tokenizers import Tokenizer
+
+SPECIAL_TOKENS = [
+    # special tokens excluding bos
+    "<|user_start|>",
+    "<|user_end|>",
+    "<|assistant_start|>",
+    "<|assistant_end|>",
+]
 
 
 class BaseTokenizerWrapper:
@@ -33,6 +42,8 @@ class HFTokenizerWrapper(BaseTokenizerWrapper):
         self.bos_token_id = self.tokenizer.token_to_id(bos_token)
         self.need_bos = self.bos_token_id not in test_encoding
 
+        self.tokenizer.add_special_tokens(SPECIAL_TOKENS)
+
     def _get_tokens_from_config(
         self,
         token: dict[str, str] | str | None,
@@ -61,3 +72,52 @@ class HFTokenizerWrapper(BaseTokenizerWrapper):
 
     def __len__(self) -> int:
         return self.tokenizer.get_vocab_size()
+
+    def render_messages(
+        self,
+        messages: list[dict[str, str]],
+        max_length: int,
+    ) -> tuple[list[int], list[int]]:
+        """Render messages into ids and mask.
+        We assume each `messages` has the following structure:
+
+        [
+            {"role": "user", "content": "..."},
+            {"role": "assistant", "content": "..."},
+        ]
+
+        """
+
+        ids, mask = [self.bos_token_id], [0]
+
+        if messages[0]["role"] == "assistant":
+            # If the first message is from the assistant, e.g., system prompt, add it to user's message
+            assert messages[1]["role"] == "user"
+
+            messages = deepcopy(messages)
+            messages[0]["content"] += "\n" + messages[1]["content"]
+            messages = messages[1:]
+
+        for i, message in enumerate(messages):
+            role = message["role"]
+            content = message["content"]
+
+            assert role in ["user", "assistant"], f"Unknown role: {role}"
+            assert i % 2 == 0 and role == "user", "User messages should be at even indices."
+            assert isinstance(content, str), "Message content should be a string."
+
+            if role == "user":
+                _ids = self.encode(f"<|user_start|>{content}<|user_end|>")[1:]  # remove bos
+                ids.extend(_ids)
+                mask.extend([0] * len(_ids))
+
+            else:  # assistant
+                _ids = self.encode(f"<|assistant_start|>{content}<|assistant_end|>")[1:]  # remove bos
+                ids.extend(_ids)
+                mask.extend([1] * len(_ids))
+
+        # Truncate from the left if exceeds max_length
+        ids = ids[:max_length]
+        mask = mask[:max_length]
+
+        return ids, mask
