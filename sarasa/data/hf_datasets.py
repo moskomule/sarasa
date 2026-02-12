@@ -57,8 +57,10 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
 
-        val_ds = ds.take(val_size)
-        train_ds = ds.skip(val_size)
+        val_ds = None
+        if val_size > 0:
+            val_ds = ds.take(val_size)
+            train_ds = ds.skip(val_size)
         return train_ds, val_ds
 
 
@@ -150,7 +152,7 @@ class HFTextDataset(IterableDataset):
                     output_buffer = output_buffer[: self.seq_len + 1]
                     self.buffer.pop(i)
 
-            assert len(output_buffer) == self.seq_len + 1
+            output_buffer = output_buffer[: self.seq_len + 1]
 
             input = output_buffer[:-1]
             label = output_buffer[1:]

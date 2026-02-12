@@ -1,5 +1,4 @@
 import json
-from copy import deepcopy
 from pathlib import Path
 
 from tokenizers import Tokenizer
@@ -82,28 +81,19 @@ class HFTokenizerWrapper(BaseTokenizerWrapper):
         We assume each `messages` has the following structure:
 
         [
-            {"role": "user", "content": "..."},
-            {"role": "assistant", "content": "..."},
+            {"role": "user" | "assistant", "content": "..."},
+            ...,
         ]
 
         """
 
         ids, mask = [self.bos_token_id], [0]
 
-        if messages[0]["role"] == "assistant":
-            # If the first message is from the assistant, e.g., system prompt, add it to user's message
-            assert messages[1]["role"] == "user"
-
-            messages = deepcopy(messages)
-            messages[0]["content"] += "\n" + messages[1]["content"]
-            messages = messages[1:]
-
         for i, message in enumerate(messages):
             role = message["role"]
             content = message["content"]
 
             assert role in ["user", "assistant"], f"Unknown role: {role}"
-            assert i % 2 == 0 and role == "user", "User messages should be at even indices."
             assert isinstance(content, str), "Message content should be a string."
 
             if role == "user":
