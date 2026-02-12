@@ -30,6 +30,8 @@ class ModelConfig:
     rms_eps: float | None = None  # epsilon for RMSNorm, default to library default if None
     rms_learnable: bool = False  # whether RMSNorm has learnable scale parameter
 
+    attn_type: Literal["sdpa", "varlen"] = "sdpa"
+
     extra: dict[str, int | float | bool | str] = dataclasses.field(default_factory=dict)
     """ Extra model-specific configurations. 
     Expected to be used in config files, but can be updated in CLI,

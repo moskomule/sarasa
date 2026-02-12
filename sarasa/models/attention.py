@@ -1,9 +1,24 @@
+import inspect
+from collections.abc import Callable
+from functools import partial
+from typing import ClassVar, NamedTuple
+
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.nn.attention.varlen import varlen_attn as _varlen_attn
+from torch.types import Number
 
 from sarasa.models import ModelConfig
 from sarasa.models.utils import RoPE
+
+if inspect.signature(_varlen_attn).parameters.get("window_size") is not None:
+    # torch>2.10
+    # after the release of torch 2.11, this branch can be removed
+    varlen_attn = partial(_varlen_attn, window_size=(-1, 0))
+else:
+    # torch==2.10
+    varlen_attn = partial(_varlen_attn, is_causal=True)
 
 
 class SDPAttention(nn.Module):
@@ -30,15 +45,51 @@ class SDPAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
+        *,
+        metadata: NamedTuple | None = None,
     ) -> torch.Tensor:
         with nn.attention.sdpa_kernel(self.sdpa_backends):
-            return F.scaled_dot_product_attention(
-                query,
+            out = F.scaled_dot_product_attention(
+                query,  # (B, num_heads, T, head_dim)
                 key,
                 value,
                 is_causal=self.is_causal,
                 enable_gqa=self.enable_gqa,
             )
+        return out.transpose(1, 2).reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
+
+
+class VarlenMetaData(NamedTuple):
+    cu_seq_q: torch.Tensor
+    cu_seq_k: torch.Tensor
+    max_q: Number
+    max_k: Number
+
+
+class VarlenAttention(nn.Module):
+    _compiled_varlen: ClassVar[Callable] = torch.compile(
+        varlen_attn,
+        mode="max-autotune-no-cudagraphs",
+    )
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        *,
+        metadata: VarlenMetaData,
+    ) -> torch.Tensor:
+        out = self._compiled_varlen(
+            query.transpose(1, 2).flatten(0, 1),  # (B*T, num_heads, head_dim)
+            key.transpose(1, 2).flatten(0, 1),
+            value.transpose(1, 2).flatten(0, 1),
+            metadata.cu_seq_q,
+            metadata.cu_seq_k,
+            metadata.max_q,
+            metadata.max_k,
+        )  # (B*T, num_heads, head_dim)
+        return out.reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
 
 
 class CausalSelfAttention(nn.Module):
@@ -63,13 +114,17 @@ class CausalSelfAttention(nn.Module):
             else nn.Identity()
         )
 
-        # todo: support varlen etc and kv caching
-        self.attn = SDPAttention(is_causal=True, enable_gqa=self.num_heads != self.num_kv_heads)
+        if config.attn_type == "varlen":
+            self.attn = VarlenAttention()
+        else:
+            self.attn = SDPAttention(is_causal=True, enable_gqa=self.num_heads != self.num_kv_heads)
 
     def forward(
         self,
         x: torch.Tensor,
         cos_sin: tuple[torch.Tensor, torch.Tensor],
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
         B, T, C = x.size()
 
@@ -82,7 +137,11 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = RoPE.apply(q, cos, sin), RoPE.apply(k, cos, sin)
         q, k = self.qk_norm(q), self.qk_norm(k)
-        y = self.attn(q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2))  # (B, n_head, T, head_dim)
-        y = y.transpose(1, 2).contiguous().view(B, T, -1)
+        y = self.attn(
+            q.transpose(1, 2),
+            k.transpose(1, 2),
+            v.transpose(1, 2),
+            metadata=metadata,
+        )  # (B, T, num_heads * head_dim)
         y = self.c_proj(y)
         return y
