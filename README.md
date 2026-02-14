@@ -2,7 +2,7 @@
 
 A minimum LLM training framework built on pure PyTorch with simplicity and extensibility.
 
-> [! CAUTION]
+> [!CAUTION]
 > sarasa is developed by an error-prone human and thus may contain many bugs. 
 > Use it at your own risk.
 
