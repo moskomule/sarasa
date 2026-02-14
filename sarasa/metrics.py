@@ -215,7 +215,7 @@ class MetricsProcessor:
         self.data_load_times: list[float] = []
         self.reset()
 
-    def should_log(
+    def trigger(
         self,
         step: int,
     ) -> bool:

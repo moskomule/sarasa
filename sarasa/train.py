@@ -118,7 +118,7 @@ class Trainer:
         self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.freq > 0 else None
         self.evaluator = (
-            Evaluator(val_loader, self.amp_context, self.metrics_processor, self.loss_fn, self.device)
+            Evaluator(config.evaluate, val_loader, self.amp_context, self.metrics_processor, self.loss_fn, self.device)
             if val_loader is not None
             else None
         )
@@ -154,10 +154,10 @@ class Trainer:
                         logger.warning("Data loader exhausted during training.")
                         break
 
-                    if self.checkpointer is not None:
+                    if self.checkpointer is not None and self.checkpointer.trigger(self.step):
                         self.checkpointer.save(self.step)
 
-                    if self.config.evaluate.freq > 0 and self.step % self.config.evaluate.freq == 0:
+                    if self.evaluator is not None and self.evaluator.trigger(self.step):
                         logger.info("Starting evaluation...")
                         self.evaluator.evaluate(self.model, self.step)
 
@@ -229,7 +229,7 @@ class Trainer:
 
         loss = torch.stack(losses).sum()
 
-        if not self.metrics_processor.should_log(self.step):
+        if not self.metrics_processor.trigger(self.step):
             return
 
         if world_size() > 1:

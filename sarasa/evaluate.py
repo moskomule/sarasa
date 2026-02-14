@@ -4,6 +4,7 @@ from typing import Callable, Iterable
 import torch
 import torch.distributed as dist
 
+from sarasa.config import Evaluate as EvaluateConfig
 from sarasa.metrics import MetricsProcessor
 from sarasa.utils import IGNORE_INDEX, world_size
 
@@ -11,17 +12,25 @@ from sarasa.utils import IGNORE_INDEX, world_size
 class Evaluator:
     def __init__(
         self,
+        config: EvaluateConfig,
         val_loader: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
         amp_context: AbstractContextManager,
         metrics_processor: MetricsProcessor,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         device: torch.device,
     ):
+        self.freq = config.freq
         self.val_loader = val_loader
         self.amp_context = amp_context
         self.metrics_processor = metrics_processor
         self.loss_fn = loss_fn
         self.device = device
+
+    def trigger(
+        self,
+        step: int,
+    ) -> bool:
+        return step % self.freq == 0
 
     @torch.no_grad()
     def evaluate(

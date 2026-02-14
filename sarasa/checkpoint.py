@@ -52,13 +52,17 @@ class Checkpointer:
 
         self.state = ModelWrapper(model)
 
+    def trigger(
+        self,
+        step: int,
+    ) -> bool:
+        return step % self.freq == 0
+
     @torch.no_grad()
     def save(
         self,
         step: int,
     ) -> None:
-        if step % self.freq != 0:
-            return
 
         begin = time.perf_counter()
         checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
