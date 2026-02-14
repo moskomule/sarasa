@@ -1,3 +1,5 @@
+import typing
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -15,6 +17,7 @@ class MLP(nn.Module):
         ffn_dim_multiplier: float | None,
     ):
         super().__init__()
+        config.hidden_dim = typing.cast(int, config.hidden_dim)
         hidden_dim = int(8 * config.hidden_dim / 3)
         # custom dim factor multiplier
         if ffn_dim_multiplier is not None:
@@ -41,6 +44,7 @@ class Block(nn.Module):
         self.layer_idx = layer_idx
         self.attention = CausalSelfAttention(config)
         self.mlp = MLP(config, multiple_of, ffn_dim_multiplier)
+        config.hidden_dim = typing.cast(int, config.hidden_dim)
         self.attn_norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)
         self.mlp_norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)
 
@@ -62,11 +66,11 @@ class Llama3(BaseModel):
         config: ModelConfig,
     ):
         super().__init__(config)
-        multiple_of = config.extra.get("multiple_of", 1024)
-        ffn_dim_multiplier = config.extra.get("ffn_dim_multiplier", 1.4)
+        multiple_of = int(config.extra.get("multiple_of", 1024))
+        ffn_dim_multiplier = float(config.extra.get("ffn_dim_multiplier", 1.4))
 
-        self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
-        self.max_seq_len = config.seq_len * 16
+        self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)  # type: ignore
+        self.max_seq_len = config.seq_len * 16  # type: ignore
         self.head_dim = config.head_dim
         cos, sin = RoPE.precompute(self.max_seq_len, config.head_dim)
         self.register_buffer("cos", cos, persistent=False)
@@ -74,13 +78,14 @@ class Llama3(BaseModel):
         self.blocks = nn.ModuleList([
             Block(config, layer_idx, multiple_of, ffn_dim_multiplier) for layer_idx in range(config.num_layers)
         ])
-        self.norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)
-        self.output = nn.Linear(config.hidden_dim, config.vocab_size, bias=False)
+        self.norm = nn.RMSNorm(config.hidden_dim, eps=config.rms_eps)  # type: ignore
+        self.output = nn.Linear(config.hidden_dim, config.vocab_size, bias=False)  # type: ignore
 
     @torch.no_grad()
     def init_weights(self) -> None:
         self.cos, self.sin = RoPE.precompute(self.max_seq_len, self.head_dim, device=self.cos.device)
         torch.nn.init.normal_(self.token_emb.weight)
+        # pyrefly: ignore [bad-assignment]
         for block in self.blocks:
             block: Block
             init_std = 0.02 / (2 * (block.layer_idx + 1)) ** 0.5

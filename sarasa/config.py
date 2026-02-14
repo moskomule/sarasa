@@ -21,6 +21,11 @@ from sarasa.optimizers import AdamW  # noqa
 
 
 @dataclasses.dataclass
+class _WithSeqLen:
+    seq_len: int | None = None
+
+
+@dataclasses.dataclass
 class LRScheduler:
     warmup_steps: int = 200
     decay_ratio: float | None = None
@@ -33,7 +38,7 @@ class LRScheduler:
         self,
         optimizer: torch.optim.Optimizer,
         total_iters: int,
-    ) -> torch.optim.lr_scheduler._LRScheduler:
+    ) -> torch.optim.lr_scheduler.SequentialLR:
         assert self.decay_ratio is None or (0 <= self.decay_ratio <= 1), "decay_ratio must be between 0 and 1"
         warmup_steps = self.warmup_steps
         stay_steps = 0 if self.decay_ratio is None else int(total_iters * (1 - self.decay_ratio)) - warmup_steps
@@ -72,6 +77,8 @@ class LRScheduler:
                     T_max=decay_steps,
                     eta_min=optimizer.param_groups[0]["lr"] * self.min_lr_factor,
                 )
+            case _:
+                raise ValueError(f"Unsupported decay type: {self.decay_type}")
 
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer,
@@ -194,7 +201,7 @@ class FSDP(Distributed):
 
 
 @dataclasses.dataclass
-class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
+class Config[ModelT: _WithSeqLen, OptimizerT, LRSchedulerT, DataT: _WithSeqLen]:
     # variable components
     model: ModelT
     optim: OptimizerT
@@ -213,10 +220,10 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
     debug: bool = False
     """ Enable debug mode with more verbose logging and checks."""
 
-    output_dir: Path | str = Path("./outputs")
+    output_dir: Path = Path("./outputs")
     """Directory to save checkpoints and logs."""
 
-    config_file: Path | str | None = None
+    config_file: Path | None = None
     """Path to a config file (JSON or TOML) to load configuration from."""
 
     def __post_init__(self):
@@ -263,10 +270,10 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
     def from_cli(
         cls,
         *,
-        model_type: ModelT = Model,
-        optim_type: OptimizerT = AdamW,
-        lr_scheduler_type: LRSchedulerT = LRScheduler,
-        data_type: DataT = Data,
+        model_type: ModelT = Model,  # pyrefly: ignore [bad-function-definition]
+        optim_type: OptimizerT = AdamW,  # pyrefly: ignore [bad-function-definition]
+        lr_scheduler_type: LRSchedulerT = LRScheduler,  # pyrefly: ignore [bad-function-definition]
+        data_type: DataT = Data,  # pyrefly: ignore [bad-function-definition]
     ) -> Config:
         """
         initialize JobConfig from command line arguments
@@ -295,8 +302,9 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 raise ValueError("Only Python config files are supported in this method.")
 
             spec = importlib.util.spec_from_file_location("custom_config", config_file)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            if spec is not None and spec.loader is not None:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
             configs = [
                 config
                 for config in module.__dict__.values()
@@ -310,6 +318,7 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
                 loaded_config = configs[0]
 
         return tyro.cli(
+            # pyrefly: ignore [unsupported-operation]
             cls[
                 model_type,
                 optim_type,

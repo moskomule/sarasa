@@ -25,10 +25,10 @@ class ModelWrapper(Stateful):
     def __init__(self, model: torch.nn.Module):
         self.model = model
 
-    def state_dict(self) -> dict[str, torch.Tensor]:
+    def state_dict(self) -> dict[str, dict]:
         return {"model": get_model_state_dict(self.model)}
 
-    def load_state_dict(self, state_dict: dict[str, torch.Tensor]) -> None:
+    def load_state_dict(self, state_dict: dict[str, dict]) -> None:
         raise set_model_state_dict(self.model, state_dict["model"])
 
 
@@ -91,7 +91,7 @@ class Checkpointer:
                 state_dict,
                 storage_writer=None,
                 checkpoint_id=checkpoint_id,
-                process_group=self.pg,
+                process_group=self.pg,  # pyrefly: ignore [bad-argument-type]
             )
             gc.collect(1)
         elif self.async_mode == AsyncMode.mem_pinned:
@@ -104,12 +104,12 @@ class Checkpointer:
                 state_dict,
                 storage_writer=None,
                 checkpoint_id=checkpoint_id,
-                process_group=self.pg,
+                process_group=self.pg,  # pyrefly: ignore [bad-argument-type]
                 async_checkpointer_type=AsyncCheckpointerType.PROCESS,
                 async_stager=self.stager,
             )
-            self.save_future = ret.upload_completion
-            self.stage_future = ret.staging_completion
+            self.save_future = ret.upload_completion  # pyrefly: ignore
+            self.stage_future = ret.staging_completion  # pyrefly: ignore
         else:
             ret = dcp.save(
                 state_dict,
@@ -132,7 +132,7 @@ class Checkpointer:
             self.save_future.result()
 
         if self.pg is not None:
-            dist.destroy_process_group(self.pg)
+            dist.destroy_process_group(self.pg)  # pyrefly: ignore [bad-argument-type]
             self.pg = None
 
     def __del__(self):

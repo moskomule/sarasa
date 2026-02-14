@@ -26,7 +26,7 @@ class Datasets(enum.StrEnum):
         self,
         cache_dir: str | None,
         val_size: int,
-    ) -> tuple[HFIterableDataset, HFIterableDataset]:
+    ) -> tuple[HFIterableDataset, HFIterableDataset | None]:
         match self:
             case Datasets.c4:
                 ds = load_dataset(
@@ -60,6 +60,8 @@ class Datasets(enum.StrEnum):
                     streaming=True,
                     cache_dir=cache_dir,
                 )
+            case _:
+                raise ValueError(f"Unsupported dataset: {self}")
 
         train_ds, val_ds = ds, None
         if val_size > 0:
@@ -105,7 +107,7 @@ class DataConfig:
             pin_memory=self.pin_memory,
         )
         val_loader = None
-        if val_cfg.val_size > 0:
+        if val_ds is not None and val_cfg.val_size > 0:
             val_loader = DataLoader(
                 HFTextDataset(
                     val_ds,

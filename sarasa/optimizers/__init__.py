@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 
@@ -68,7 +68,7 @@ class Muon:
 
         adam = torch.optim.AdamW(
             sum([param_groups[k] for k in param_groups if k != "matrix"], []),
-            lr=self.adam_lr,
+            lr=cast(float, self.adam_lr),
             betas=self.adam_betas,
             weight_decay=self.adam_weight_decay,
             fused=True,

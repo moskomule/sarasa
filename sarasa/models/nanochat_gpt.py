@@ -1,6 +1,8 @@
 # NanoChat's GPT model, adapted from https://github.com/karpathy/nanochat
 
 
+import typing
+
 import torch
 from loguru import logger
 from torch import nn
@@ -26,6 +28,7 @@ class MLP(nn.Module):
         config: ModelConfig,
     ):
         super().__init__()
+        config.hidden_dim = typing.cast(int, config.hidden_dim)
         self.c_fc = nn.Linear(config.hidden_dim, 4 * config.hidden_dim, bias=False)
         self.c_proj = nn.Linear(4 * config.hidden_dim, config.hidden_dim, bias=False)
 
@@ -45,6 +48,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn = CausalSelfAttention(config, layer_idx)
         self.mlp = MLP(config)
+        config.hidden_dim = typing.cast(int, config.hidden_dim)
         self.norm = RMSNorm(config.hidden_dim)
 
     def forward(
@@ -65,15 +69,15 @@ class GPT(BaseModel):
         config: ModelConfig,
     ):
         super().__init__(config)
-        pad_vocab_size_to = config.extra.get("pad_vocab_size_to", 64)
-        self.use_softcap = config.extra.get("use_softcap", False)
-        use_resid_lambdas = config.extra.get("use_resid_lambdas", False)
-        use_x0_lambdas = config.extra.get("use_x0_lambdas", False)
+        pad_vocab_size_to = int(config.extra.get("pad_vocab_size_to", 64))
+        self.use_softcap = bool(config.extra.get("use_softcap", False))
+        use_resid_lambdas = bool(config.extra.get("use_resid_lambdas", False))
+        use_x0_lambdas = bool(config.extra.get("use_x0_lambdas", False))
 
-        self.num_heads = config.num_heads
-        self.hidden_dim = config.hidden_dim
-        self.seq_len = config.seq_len
-        self.vocab_size = config.vocab_size
+        self.num_heads = typing.cast(int, config.num_heads)
+        self.hidden_dim = typing.cast(int, config.hidden_dim)
+        self.seq_len = typing.cast(int, config.seq_len)
+        self.vocab_size = typing.cast(int, config.vocab_size)
         self.num_layers = config.num_layers
 
         # For DDP, we want vocab_size divisible by world_size. Also, there are potential performance benefits, see:
@@ -129,7 +133,9 @@ class GPT(BaseModel):
         # Transformer blocks: uniform init with bound = sqrt(3) * std (same standard deviation as normal)
         n_embd = self.hidden_dim
         s = 3**0.5 * n_embd**-0.5  # sqrt(3) multiplier makes sure Uniform achieves the same std as Normal
+        # pyrefly: ignore
         for block in self.blocks:
+            block: Block
             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)  # weights use Uniform to avoid outliers
             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)

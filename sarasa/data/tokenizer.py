@@ -13,10 +13,12 @@ SPECIAL_TOKENS = [
 
 
 class BaseTokenizerWrapper:
-    def encode(self, *args, **kwargs) -> list[int]:
+    bos_token_id: int
+
+    def encode(self, text: str, **kwargs) -> list[int]:
         raise NotImplementedError
 
-    def decode(self, *args, **kwargs) -> str:
+    def decode(self, token_ids: list[int], **kwargs) -> str:
         raise NotImplementedError
 
     def __len__(self) -> int:
@@ -54,8 +56,9 @@ class HFTokenizerWrapper(BaseTokenizerWrapper):
     def encode(
         self,
         text: str,
+        **kwargs,
     ) -> list[int]:
-        token_ids = self.tokenizer.encode(text).ids
+        token_ids = self.tokenizer.encode(text, **kwargs).ids
 
         if self.need_bos:
             token_ids = [self.bos_token_id] + token_ids

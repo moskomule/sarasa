@@ -9,7 +9,10 @@ class GroupedOptimizer(torch.optim.Optimizer):
         super().__init__(sum([optim.param_groups for optim in optimizers], []), {})
         self.optimizers = optimizers
 
-    def step(self) -> None:
+    # pyrefly: ignore [bad-override]
+    def step(
+        self,
+    ) -> None:
         for optim in self.optimizers:
             optim.step()
 

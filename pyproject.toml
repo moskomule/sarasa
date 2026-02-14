@@ -21,19 +21,9 @@ dependencies = [
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
-[tool.uv-dynamic-versioning]
-enable = true
-vcs = "git"
-format-jinja = """
-    {%- if distance == 0 -%}
-        {{ base }}
-    {%- else -%}
-        {{ base }}.dev{{ distance }}
-    {%- endif -%}
-"""
-
 [dependency-groups]
 dev = [
+    "pyrefly>=0.52.0",
     "pytest>=9.0.2",
     "ruff>=0.14.14",
 ]
@@ -89,3 +79,11 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+]
+project-excludes = [
+  "tests/**",
+]
