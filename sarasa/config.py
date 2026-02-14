@@ -145,7 +145,7 @@ class Profile:
     wait: int = 10  # the number of steps to wait before warming up the profiler
     warmup: int = 10  # the number of steps to warm up the profiler before starting to record
     active: int = 10  # the number of steps for the active record
-    repeat: int = 0  # the number of cycles
+    repeat: int = 1  # the number of cycles, 0 means always
 
 
 @dataclasses.dataclass

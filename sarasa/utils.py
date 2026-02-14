@@ -38,6 +38,8 @@ def setup_profiler(
     if (pa := getattr(torch.profiler.ProfilerActivity, device.type.upper(), None)) is not None:
         activities.append(pa)
 
+    logger.info(f"Profiler is activated with activities: {[a.name for a in activities]}")
+
     return torch.profiler.profile(
         activities=activities,
         schedule=torch.profiler.schedule(
