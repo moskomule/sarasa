@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import abc
 import dataclasses
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from loguru import logger
 from torch import nn
 
-from sarasa.models.attention import VarlenMetaData
-from sarasa.models.utils import create_varlen_metadata_prehook
+if TYPE_CHECKING:
+    from sarasa.models.attention import VarlenMetaData
 
 
 @dataclasses.dataclass
@@ -95,6 +95,8 @@ class BaseModel(nn.Module, abc.ABC):
         super().__init__()
         self.config = config
         if self.config.attn_type == "varlen":
+            from sarasa.models.utils import create_varlen_metadata_prehook
+
             self.register_forward_pre_hook(create_varlen_metadata_prehook(bos_token_id=1), with_kwargs=True)
 
     @abc.abstractmethod
