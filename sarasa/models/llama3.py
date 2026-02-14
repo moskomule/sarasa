@@ -48,8 +48,10 @@ class Block(nn.Module):
         self,
         x: torch.Tensor,
         cos_sin: tuple[torch.Tensor, torch.Tensor],
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
-        x = x + self.attention(self.attn_norm(x), cos_sin)
+        x = x + self.attention(self.attn_norm(x), cos_sin, metadata=metadata)
         x = x + self.mlp(self.mlp_norm(x))
         return x
 

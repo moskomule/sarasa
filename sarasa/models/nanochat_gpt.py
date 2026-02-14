@@ -7,9 +7,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from sarasa.models import BaseModel, ModelConfig
-from sarasa.models.attention import CausalSelfAttention
+from sarasa.models.attention import CausalSelfAttention, VarlenMetaData
 from sarasa.models.utils import RoPE
-from sarasa.models.varlen import VarlenMetaData
 
 
 class RMSNorm(torch.nn.RMSNorm):
@@ -52,8 +51,10 @@ class Block(nn.Module):
         self,
         x: torch.Tensor,
         cos_sin: tuple[torch.Tensor, torch.Tensor],
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
-        x = x + self.attn(self.norm(x), cos_sin)
+        x = x + self.attn(self.norm(x), cos_sin, metadata=metadata)
         x = x + self.mlp(self.norm(x))
         return x
 
