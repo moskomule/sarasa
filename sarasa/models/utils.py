@@ -51,7 +51,7 @@ def create_varlen_metadata_prehook(
         if kwargs.get("metadata") is not None:
             return args, kwargs
 
-        if args[0].dtype == "meta":
+        if args[0].device == "meta":
             # need a dummy metadata for shape inference
             kwargs["metadata"] = VarlenMetaData(
                 cu_seq_q=torch.zeros(1, dtype=torch.int64),
@@ -64,10 +64,10 @@ def create_varlen_metadata_prehook(
         input = args[0]  # (B, T)
         # flatten it to 1D
         bos_positions, _ = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
-        cu_seq = torch.cat(
+        cu_seq = torch.cat((
             bos_positions,
             bos_positions.new_tensor(input.size(0) * input.size(1)),
-        )
+        ))
         max_seqlen = torch.diff(cu_seq).max()
         metadata = VarlenMetaData(
             cu_seq_q=cu_seq,
