@@ -50,7 +50,8 @@ def create_varlen_metadata_prehook(
         if kwargs.get("metadata") is not None:
             return args, kwargs
 
-        if args[0].device.type == "meta":
+        input = args[0] if len(args) > 0 else kwargs.get("input")
+        if input.device.type == "meta":
             # need a dummy metadata for shape inference
             kwargs["metadata"] = VarlenMetaData(
                 cu_seq_q=torch.zeros(1, dtype=torch.int64),
@@ -60,8 +61,7 @@ def create_varlen_metadata_prehook(
             )
             return args, kwargs
 
-        input = args[0]  # (B, T)
-        # flatten it to 1D
+        # flatten input (BxT) to 1D
         (bos_positions,) = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
         cu_seq = torch.cat((
             bos_positions,
