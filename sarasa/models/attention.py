@@ -46,8 +46,9 @@ class SDPAttention(nn.Module):
         key: torch.Tensor,
         value: torch.Tensor,
         *,
-        metadata: NamedTuple | None = None,
+        metadata=None,
     ) -> torch.Tensor:
+        assert metadata is None
         with nn.attention.sdpa_kernel(self.sdpa_backends):
             out = F.scaled_dot_product_attention(
                 query,  # (B, num_heads, T, head_dim)
