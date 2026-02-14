@@ -68,7 +68,7 @@ class VarlenMetaData(NamedTuple):
 
 
 class VarlenAttention(nn.Module):
-    _compiled_varlen: ClassVar[Callable] = torch.compile(
+    compiled_varlen: ClassVar[Callable] = torch.compile(
         varlen_attn,
         mode="max-autotune-no-cudagraphs",
     )
@@ -81,7 +81,7 @@ class VarlenAttention(nn.Module):
         *,
         metadata: VarlenMetaData,
     ) -> torch.Tensor:
-        out = self._compiled_varlen(
+        out = VarlenAttention.compiled_varlen(
             query.transpose(1, 2).flatten(0, 1),  # (B*T, num_heads, head_dim)
             key.transpose(1, 2).flatten(0, 1),
             value.transpose(1, 2).flatten(0, 1),

@@ -62,7 +62,7 @@ def create_varlen_metadata_prehook(
 
         input = args[0]  # (B, T)
         # flatten it to 1D
-        bos_positions, _ = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
+        (bos_positions,) = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
         cu_seq = torch.cat((
             bos_positions,
             bos_positions.new_tensor(input.size(0) * input.size(1)),
