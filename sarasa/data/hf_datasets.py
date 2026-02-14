@@ -14,14 +14,23 @@ from sarasa.utils import IGNORE_INDEX, rank, world_size
 
 
 class HFTextDataset(IterableDataset):
+    """
+    A wrapper around HF datasets.
+
+    Supports three strategies for creating input-label pairs:
+    1. "streaming": Concatenate tokens from the dataset and yield input-label pairs of length seq_len + 1.
+    2. "document_pack_crop": Create a buffer of tokens and repeatedly pick the longest sequences that fit within seq_len + 1, cropping if necessary.
+    3. "document_pack_pad": Similar to "document_pack_crop", but if no sequence can fit, pad with bos_token_id instead of cropping. Useful for small datasets.
+    """
+
     def __init__(
         self,
         dataset: HFIterableDataset,
         tokenizer: Callable[[str], list[int]],
         seq_len: int,
         use_varlen: bool,
+        strategy: Literal["streaming", "document_pack_crop", "document_pack_pad"],
         infinite: bool = True,
-        strategy: Literal["default", "bos_aligned_crop", "bos_aligned_pad"] = "default",
         buffer_size: int = 1_000,
     ):
         if rank() != 0:
@@ -30,7 +39,6 @@ class HFTextDataset(IterableDataset):
         self.data = split_dataset_by_node(dataset, rank=rank(), world_size=world_size())
         self.tokenizer = tokenizer
         self.seq_len = seq_len
-        self.buffer: list[int] | list[list[int]] = []
         self.infinite = infinite
         self.strategy = strategy
         self.buffer_size = buffer_size
@@ -45,27 +53,28 @@ class HFTextDataset(IterableDataset):
         # Default text processor: extract 'text' field
         return sample["text"]
 
-    def _default_iter(
+    def _streaming_iter(
         self,
         data_iter: Iterable[dict[str, Any]],
     ):
+        buffer: list[int] = []
         max_buffer_token_len = 1 + self.seq_len
 
         for sample in data_iter:
             # Use the dataset-specific text processor
             sample_text = self._text_processor(sample)
             sample_tokens = self.tokenizer.encode(sample_text)
-            self.buffer.extend(sample_tokens)
+            buffer.extend(sample_tokens)
 
-            while len(self.buffer) >= max_buffer_token_len:
-                x = torch.LongTensor(self.buffer[:max_buffer_token_len])
+            while len(buffer) >= max_buffer_token_len:
+                x = torch.tensor(buffer[:max_buffer_token_len], dtype=torch.int32)
                 # update tokens to the remaining tokens
-                self.buffer = self.buffer[max_buffer_token_len:]
+                buffer = buffer[max_buffer_token_len:]
                 input = x[:-1]
                 label = x[1:]
                 yield self.post_process_fn({"input": input}), label
 
-    def _bos_aligned_iter(
+    def _document_pack_iter(
         self,
         data_iter: Iterable[dict[str, Any]],
     ):
@@ -73,24 +82,25 @@ class HFTextDataset(IterableDataset):
         # if there's no sequence that can fit, pick the shortest one and crop it to fit / pad bos token to fit
         # this strategy is used in nanochat
 
+        document_buffer: list[list[int]] = []
         output_buffer: list[int] = []
         pad_size = 0
 
         for sample in iter(data_iter):
             # fill the buffer
-            while len(self.buffer) < self.buffer_size:
+            while len(document_buffer) < self.buffer_size:
                 sample_text = self._text_processor(sample)
                 sample_tokens = self.tokenizer.encode(sample_text)
-                self.buffer.append(sample_tokens)
+                document_buffer.append(sample_tokens)
 
-            self.buffer.sort(key=len, reverse=True)
+            document_buffer.sort(key=len, reverse=True)
 
             i = 0
-            while i < len(self.buffer):
-                seq = self.buffer[i]
+            while i < len(document_buffer):
+                seq = document_buffer[i]
                 if len(output_buffer) + len(seq) <= self.seq_len + 1:
                     output_buffer.extend(seq)
-                    self.buffer.pop(i)
+                    document_buffer.pop(i)
                 else:
                     i += 1
 
@@ -100,12 +110,12 @@ class HFTextDataset(IterableDataset):
                     pad_size = self.seq_len + 1 - len(output_buffer)
                     output_buffer += [self.tokenizer.bos_token_id] * pad_size
                 else:
-                    seq = self.buffer[i]
+                    seq = document_buffer[-1]
                     output_buffer.extend(seq)
                     output_buffer = output_buffer[: self.seq_len + 1]
-                    self.buffer.pop(i)
+                    document_buffer.pop(-1)
 
-            output_buffer = output_buffer[: self.seq_len + 1]
+            output_buffer = torch.tensor(output_buffer[: self.seq_len + 1], dtype=torch.int32)
 
             input = output_buffer[:-1]
             label = output_buffer[1:]
@@ -121,10 +131,12 @@ class HFTextDataset(IterableDataset):
         while True:
             data_iter = iter(self.data)
             match self.strategy:
-                case "default":
-                    yield from self._default_iter(data_iter)
-                case "bos_aligned_crop" | "bos_aligned_pad":
-                    yield from self._bos_aligned_iter(data_iter)
+                case "streaming":
+                    yield from self._streaming_iter(data_iter)
+                case "document_pack_crop" | "document_pack_pad":
+                    yield from self._document_pack_iter(data_iter)
+                case _:
+                    raise ValueError(f"Invalid packing strategy: {self.strategy}")
 
             if not self.infinite:
                 break

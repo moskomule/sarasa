@@ -17,6 +17,8 @@ _ops_sac_save = {
     # the result of max, since the absolute maximum is
     # used to compute the scaling factor for quantization.
     torch.ops.aten.max.default,
+    torch._higher_order_ops.flex_attention,
+    torch.ops.torch_attn._varlen_attn.default,
     torch._higher_order_ops.inductor_compiled_code,
 }
 

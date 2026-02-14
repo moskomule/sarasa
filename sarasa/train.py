@@ -81,8 +81,8 @@ class Trainer:
         if config.train.compile:
             logger.info("Compiling the model")
             for block in self.model.blocks:
-                block.compile(fullgraph=True, dynamic=False)
-            self.model.compile(dynamic=False)
+                block.compile(fullgraph=True)
+            self.model.compile()
             self.loss_fn = torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
 
         if world_size() > 1:

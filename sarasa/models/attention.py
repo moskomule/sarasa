@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import inspect
-from collections.abc import Callable
 from functools import partial
-from typing import ClassVar, NamedTuple
+from typing import Callable, ClassVar, NamedTuple
 
 import torch
 from torch import nn
@@ -19,6 +20,50 @@ if inspect.signature(_varlen_attn).parameters.get("window_size") is not None:
 else:
     # torch==2.10
     varlen_attn = partial(_varlen_attn, is_causal=True)
+
+
+class VarlenMetaData(NamedTuple):
+    cu_seq_q: torch.Tensor
+    cu_seq_k: torch.Tensor
+    max_q: Number
+    max_k: Number
+
+    def to(
+        self,
+        device: torch.device,
+        non_blocking: bool = False,
+    ) -> VarlenMetaData:
+        return self._replace(
+            cu_seq_q=self.cu_seq_q.to(device, non_blocking=non_blocking),
+            cu_seq_k=self.cu_seq_k.to(device, non_blocking=non_blocking),
+        )
+
+
+class VarlenAttention(nn.Module):
+    compiled_varlen: ClassVar[Callable] = torch.compile(
+        varlen_attn,
+        mode="max-autotune-no-cudagraphs",
+    )
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        *,
+        metadata: VarlenMetaData,
+    ) -> torch.Tensor:
+
+        out = VarlenAttention.compiled_varlen(
+            query.transpose(1, 2).flatten(0, 1),  # (B*T, num_heads, head_dim)
+            key.transpose(1, 2).flatten(0, 1),
+            value.transpose(1, 2).flatten(0, 1),
+            cu_seq_q=metadata.cu_seq_q.view(-1),
+            cu_seq_k=metadata.cu_seq_k.view(-1),
+            max_q=int(metadata.max_q),
+            max_k=int(metadata.max_k),
+        )  # (B*T, num_heads, head_dim)
+        return out.reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
 
 
 class SDPAttention(nn.Module):
@@ -58,39 +103,6 @@ class SDPAttention(nn.Module):
                 enable_gqa=self.enable_gqa,
             )
         return out.transpose(1, 2).reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
-
-
-class VarlenMetaData(NamedTuple):
-    cu_seq_q: torch.Tensor
-    cu_seq_k: torch.Tensor
-    max_q: Number
-    max_k: Number
-
-
-class VarlenAttention(nn.Module):
-    compiled_varlen: ClassVar[Callable] = torch.compile(
-        varlen_attn,
-        mode="max-autotune-no-cudagraphs",
-    )
-
-    def forward(
-        self,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        *,
-        metadata: VarlenMetaData,
-    ) -> torch.Tensor:
-        out = VarlenAttention.compiled_varlen(
-            query.transpose(1, 2).flatten(0, 1),  # (B*T, num_heads, head_dim)
-            key.transpose(1, 2).flatten(0, 1),
-            value.transpose(1, 2).flatten(0, 1),
-            cu_seq_q=metadata.cu_seq_q,
-            cu_seq_k=metadata.cu_seq_k,
-            max_q=metadata.max_q,
-            max_k=metadata.max_k,
-        )  # (B*T, num_heads, head_dim)
-        return out.reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
 
 
 class CausalSelfAttention(nn.Module):

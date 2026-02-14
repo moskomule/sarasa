@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from datasets import IterableDataset as HFIterableDataset
 from datasets import load_dataset
@@ -85,6 +85,8 @@ class DataConfig:
     cache_dir: str | None = None
     """Path to cache directory for datasets. If None, default cache directory is used."""
 
+    packing_strategy: Literal["streaming", "document_pack_crop", "document_pack_pad"] = "streaming"
+
     def create(
         self,
         batch_size: int,
@@ -92,10 +94,12 @@ class DataConfig:
         use_varlen: bool,
     ) -> dict[str, Any]:
         # return {"tokenizer": tokenizer, "train_loader": train_loader, "val_loader": val_loader | None}
+        if use_varlen and batch_size != 1:
+            raise ValueError("Variable-length batching is only supported with batch_size=1.")
         tokenizer = HFTokenizerWrapper(Path(self.tokenizer_path))
         train_ds, val_ds = self.dataset.load(cache_dir=self.cache_dir, val_size=val_cfg.val_size)
         data_loader = DataLoader(
-            HFTextDataset(train_ds, tokenizer, self.seq_len, use_varlen=use_varlen),
+            HFTextDataset(train_ds, tokenizer, self.seq_len, use_varlen=use_varlen, strategy=self.packing_strategy),
             batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
@@ -103,7 +107,14 @@ class DataConfig:
         val_loader = None
         if val_cfg.val_size > 0:
             val_loader = DataLoader(
-                HFTextDataset(val_ds, tokenizer, self.seq_len, infinite=False, use_varlen=use_varlen),
+                HFTextDataset(
+                    val_ds,
+                    tokenizer,
+                    self.seq_len,
+                    infinite=False,
+                    use_varlen=use_varlen,
+                    strategy=self.packing_strategy,
+                ),
                 batch_size,
                 num_workers=self.num_workers,
                 pin_memory=self.pin_memory,
