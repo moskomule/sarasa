@@ -97,7 +97,10 @@ class BaseModel(nn.Module, abc.ABC):
         if self.config.attn_type == "varlen":
             from sarasa.models.utils import create_varlen_metadata_prehook
 
-            self.register_forward_pre_hook(create_varlen_metadata_prehook(bos_token_id=1), with_kwargs=True)
+            self.register_forward_pre_hook(
+                create_varlen_metadata_prehook(bos_token_id=config.bos_token_id),
+                with_kwargs=True,
+            )
 
     @abc.abstractmethod
     @torch.no_grad()
