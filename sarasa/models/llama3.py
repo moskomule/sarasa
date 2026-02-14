@@ -3,9 +3,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from sarasa.models import BaseModel, ModelConfig
-from sarasa.models.attention import CausalSelfAttention
+from sarasa.models.attention import CausalSelfAttention, VarlenMetaData
 from sarasa.models.utils import RoPE
-from sarasa.models.varlen import VarlenMetaData
 
 
 class MLP(nn.Module):
