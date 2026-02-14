@@ -138,6 +138,15 @@ class Evaluate:
 
 
 @dataclasses.dataclass
+class Profile:
+    enabled: bool = False
+    wait: int = 10  # the number of steps to wait before warming up the profiler
+    warmup: int = 10  # the number of steps to warm up the profiler before starting to record
+    active: int = 10  # the number of steps for the active record
+    repeat: int = 0  # the number of cycles
+
+
+@dataclasses.dataclass
 class Metrics:
     freq: int = 10
     use_tensorboard: bool = False
@@ -193,6 +202,7 @@ class Config[ModelT, OptimizerT, LRSchedulerT, DataT]:
     # static components
     train: Train = dataclasses.field(default_factory=Train)
     evaluate: Evaluate = dataclasses.field(default_factory=Evaluate)
+    profile: Profile = dataclasses.field(default_factory=Profile)
     metrics: Metrics = dataclasses.field(default_factory=Metrics)
     checkpoint: Checkpoint = dataclasses.field(default_factory=Checkpoint)
     distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
