@@ -8,6 +8,9 @@ import torch
 from loguru import logger
 from torch import nn
 
+from sarasa.models.attention import VarlenMetaData
+from sarasa.models.utils import create_varlen_metadata_prehook
+
 
 @dataclasses.dataclass
 class ModelConfig:
@@ -31,6 +34,8 @@ class ModelConfig:
     rms_learnable: bool = False  # whether RMSNorm has learnable scale parameter
 
     attn_type: Literal["sdpa", "varlen"] = "sdpa"
+    """ Attention type, either standard dense attention (sdpa) or variable-length attention (varlen)"""
+    bos_token_id: int | None = None  # required if attn_type is varlen
 
     extra: dict[str, int | float | bool | str] = dataclasses.field(default_factory=dict)
     """ Extra model-specific configurations. 
@@ -83,6 +88,15 @@ class BaseModel(nn.Module, abc.ABC):
     blocks: list[nn.Module]  # TF blocks
     config: ModelConfig
 
+    def __init__(
+        self,
+        config: ModelConfig,
+    ):
+        super().__init__()
+        self.config = config
+        if self.config.attn_type == "varlen":
+            self.register_forward_pre_hook(create_varlen_metadata_prehook(bos_token_id=1), with_kwargs=True)
+
     @abc.abstractmethod
     @torch.no_grad()
     def init_weights(self) -> None:
@@ -112,3 +126,14 @@ class BaseModel(nn.Module, abc.ABC):
         )
 
         return num_params, num_flops_per_token
+
+    @abc.abstractmethod
+    def forward(
+        self,
+        input: torch.Tensor,
+        *,
+        metadata: VarlenMetaData | None = None,
+    ) -> torch.Tensor:
+        # Forward pass of the model, input is (B, T) token ids, output is (B, T, vocab_size) logits
+        # metadata is used for, e.g., variable-length attention, and is prepared by a forward pre-hook if needed
+        pass

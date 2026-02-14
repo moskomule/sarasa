@@ -9,6 +9,7 @@ from torch.nn import functional as F
 from sarasa.models import BaseModel, ModelConfig
 from sarasa.models.attention import CausalSelfAttention
 from sarasa.models.utils import RoPE
+from sarasa.models.varlen import VarlenMetaData
 
 
 class RMSNorm(torch.nn.RMSNorm):
@@ -62,13 +63,12 @@ class GPT(BaseModel):
         self,
         config: ModelConfig,
     ):
-        super().__init__()
+        super().__init__(config)
         pad_vocab_size_to = config.extra.get("pad_vocab_size_to", 64)
         self.use_softcap = config.extra.get("use_softcap", False)
         use_resid_lambdas = config.extra.get("use_resid_lambdas", False)
         use_x0_lambdas = config.extra.get("use_x0_lambdas", False)
 
-        self.config = config
         self.num_heads = config.num_heads
         self.hidden_dim = config.hidden_dim
         self.seq_len = config.seq_len
@@ -172,6 +172,8 @@ class GPT(BaseModel):
     def forward(
         self,
         input: torch.Tensor,
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
         B, T = input.size()
 

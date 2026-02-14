@@ -1,4 +1,9 @@
+from typing import Callable
+
 import torch
+from torch import nn
+
+from sarasa.models.attention import VarlenMetaData
 
 
 class RoPE:
@@ -28,3 +33,39 @@ class RoPE:
         y1 = x1 * cos + x2 * sin
         y2 = x1 * (-sin) + x2 * cos
         return torch.cat([y1, y2], 3)
+
+
+def create_varlen_metadata_prehook(
+    bos_token_id: int,
+) -> Callable[[nn.Module, tuple, dict], tuple[tuple, dict]]:
+    """Create a forward pre-hook to prepare VarlenMetaData for variable-length attention.
+    The returned pre-hook rewrites `metadata` in kwargs.
+    """
+
+    @torch.compiler.disable
+    def prepare_varlen_metadata_prehook[A, K](
+        module: nn.Module,
+        args: A,
+        kwargs: K,
+    ) -> tuple[A, K]:
+        if kwargs.get("metadata") is not None:
+            return args, kwargs
+
+        input = args[0]  # (B, T)
+        # flatten it to 1D
+        bos_positions, _ = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
+        cu_seq = torch.cat(
+            bos_positions,
+            bos_positions.new_tensor(input.size(0) * input.size(1)),
+        )
+        max_seqlen = torch.diff(cu_seq).max()
+        metadata = VarlenMetaData(
+            cu_seq_q=cu_seq,
+            cu_seq_k=cu_seq,
+            max_q=max_seqlen,
+            max_k=max_seqlen,
+        )
+        kwargs["metadata"] = metadata
+        return args, kwargs
+
+    return prepare_varlen_metadata_prehook
