@@ -3,8 +3,6 @@ from typing import Callable
 import torch
 from torch import nn
 
-from sarasa.models.attention import VarlenMetaData
-
 
 class RoPE:
     @staticmethod
@@ -41,6 +39,8 @@ def create_varlen_metadata_prehook(
     """Create a forward pre-hook to prepare VarlenMetaData for variable-length attention.
     The returned pre-hook rewrites `metadata` in kwargs.
     """
+
+    from sarasa.models.attention import VarlenMetaData
 
     @torch.compiler.disable
     def prepare_varlen_metadata_prehook[A, K](
