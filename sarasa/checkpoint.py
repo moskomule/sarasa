@@ -8,7 +8,7 @@ import torch.distributed as dist
 import torch.distributed.checkpoint as dcp
 from loguru import logger
 from torch.distributed.checkpoint.staging import DefaultStager, StagingOptions
-from torch.distributed.checkpoint.state_dict import get_model_state_dict
+from torch.distributed.checkpoint.state_dict import get_model_state_dict, set_model_state_dict
 from torch.distributed.checkpoint.state_dict_saver import AsyncCheckpointerType
 from torch.distributed.checkpoint.stateful import Stateful
 
@@ -29,7 +29,7 @@ class ModelWrapper(Stateful):
         return {"model": get_model_state_dict(self.model)}
 
     def load_state_dict(self, state_dict: dict[str, torch.Tensor]) -> None:
-        raise NotImplementedError("...")
+        raise set_model_state_dict(self.model, state_dict["model"])
 
 
 class Checkpointer:
@@ -57,6 +57,19 @@ class Checkpointer:
         step: int,
     ) -> bool:
         return step % self.freq == 0
+
+    @torch.no_grad()
+    def load(
+        self,
+        step: int,
+    ) -> None:
+
+        checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
+        state_dict = self.state.state_dict()
+        dcp.load(
+            state_dict=state_dict,
+            checkpoint_id=checkpoint_id,
+        )
 
     @torch.no_grad()
     def save(

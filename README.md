@@ -2,6 +2,10 @@
 
 A minimum LLM training framework built on pure PyTorch with simplicity and extensibility.
 
+> [! CAUTION]
+> sarasa is developed by an error-prone human and thus may contain many bugs. 
+> Use it at your own risk.
+
 ## Installation
 
 ```bash
@@ -20,11 +24,10 @@ uv add sarasa[cpu|cu128|cu130]
 - Flexible configuration system with command-line overrides
 - Support from a single GPU to multiple GPUs (simple DDP and FSDP for now)
 - Selective activation checkpointing (SAC) for memory efficiency
-- Async distributed checkpoint saving
+- Async distributed checkpoint saving / loading
+- Profiling
 
-- [ ] Checkpoint loading
 - [ ] FP8 training
-- [ ] Profiling
 - [ ] Post-training
 
 ## Usage
@@ -46,9 +49,16 @@ uv run torchrun --nproc_per_node="gpu" main.py \
 [--train.local-batch-size 8 ...] # override config options as needed
 ```
 
-### Extending with Custom Components
+For details, run
 
-Extending Sarasa is as simple as defining your own configuration dataclasses with `create` methods for custom models, optimizers, data loaders, etc. 
+```bash
+uv run torchrun --nproc_per_node="gpu" main.py --help
+```
+
+### Extending `sarasa` with Custom Components
+
+Extending `sarasa` is as simple as defining your own configuration dataclasses with `create` methods.
+Users can define custom configurations for models, optimizers, learning-rate schedulers, and datasets.
 Here's an example of using a custom optimizer:
 
 ```python
