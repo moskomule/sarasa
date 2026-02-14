@@ -85,10 +85,10 @@ class VarlenAttention(nn.Module):
             query.transpose(1, 2).flatten(0, 1),  # (B*T, num_heads, head_dim)
             key.transpose(1, 2).flatten(0, 1),
             value.transpose(1, 2).flatten(0, 1),
-            metadata.cu_seq_q,
-            metadata.cu_seq_k,
-            metadata.max_q,
-            metadata.max_k,
+            cu_seq_q=metadata.cu_seq_q,
+            cu_seq_k=metadata.cu_seq_k,
+            max_q=metadata.max_q,
+            max_k=metadata.max_k,
         )  # (B*T, num_heads, head_dim)
         return out.reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
 

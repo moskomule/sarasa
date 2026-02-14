@@ -133,7 +133,7 @@ class Evaluate:
     """Number of samples in the evaluation set. If 0, no evaluation is performed.
     Must be divisible by (local_batch_size * num_devices)."""
 
-    local_batch_size: int = None
+    local_batch_size: int | None = None
     """local (per device) batch size for evaluation. If None, uses train.local_batch"""
 
 

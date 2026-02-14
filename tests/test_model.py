@@ -35,7 +35,7 @@ def test_create_varlen_metadata_prehook():
             return x, metadata
 
     module = DummyModule()
-    module.register_forward_pre_hook(prehook)
+    module.register_forward_pre_hook(prehook, with_kwargs=True)
     input = torch.tensor([[0, 1, 1, 1, 0, 1, 1]], dtype=torch.long)
     output, metadata = module(input)
     assert metadata.cu_seq_q.tolist() == [0, 4, 7]
