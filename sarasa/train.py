@@ -21,6 +21,7 @@ from sarasa.utils import (
     init_distributed,
     set_dtype,
     setup_logger,
+    setup_profiler,
     update_timeout,
     world_size,
 )
@@ -95,6 +96,21 @@ class Trainer:
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
+        self.step = 0
+        self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
+        if self.grad_accum_steps > 1:
+            logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
+
+        self.amp_context = contextlib.nullcontext()
+        if config.distributed.name != "fsdp":
+            self.amp_context = torch.autocast(
+                device_type=self.device.type,
+                dtype=getattr(torch, config.train.amp_dtype),
+            )
+
+        # todo: setup profiler context
+        self.profile_context = setup_profiler(self.config.profile, self.device, save_dir=self.config.output_dir)
+
         # setup metrics, checkpointer, evaluator
         self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
         self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.freq > 0 else None
@@ -108,20 +124,6 @@ class Trainer:
         logger.info(
             f"{self.device.type.upper()} memory: {dev_mem_stats.max_reserved_gib:.2f} GiB for model initialization"
         )
-
-        self.step = 0
-        self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
-        logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
-
-        self.amp_context = contextlib.nullcontext()
-        if config.distributed.name != "fsdp":
-            self.amp_context = torch.autocast(
-                device_type=self.device.type,
-                dtype=getattr(torch, config.train.amp_dtype),
-            )
-
-        # todo: setup profiler context
-        self.profile_context = contextlib.nullcontext()
 
         if config.train.use_fa4:
             logger.info("Using FA4 flash attention")
@@ -138,7 +140,7 @@ class Trainer:
             logger.info("Starting training...")
 
             self.model.train()
-            with self.profile_context:
+            with self.profile_context as profiler:
                 data_iter = self.batch_generator(self.data_loader)
                 for _ in range(self.config.train.steps):
                     self.step += 1
@@ -155,6 +157,8 @@ class Trainer:
                     if self.config.evaluate.freq > 0 and self.step % self.config.evaluate.freq == 0:
                         logger.info("Starting evaluation...")
                         self.evaluator.evaluate(self.model, self.step)
+
+                    profiler.step()
 
                     if world_size() > 1 and self.step == 1:
                         update_timeout(self.config.distributed.train_timeout_seconds, self.device)

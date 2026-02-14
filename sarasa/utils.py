@@ -8,6 +8,7 @@ import time
 import typing
 from datetime import timedelta
 from functools import cache
+from pathlib import Path
 
 import torch
 from loguru import logger
@@ -15,10 +16,41 @@ from torch import distributed as dist
 from torch import nn
 
 if typing.TYPE_CHECKING:
-    from sarasa.config import Config, Distributed
+    from sarasa.config import Config, Distributed, Profile
 
 
 IGNORE_INDEX = -100
+
+
+def setup_profiler(
+    config: Profile,
+    device: torch.device,
+    save_dir: Path,
+) -> torch.profiler.profile:
+    if not config.enabled:
+
+        class DummyProfiler:
+            def step(self): ...
+
+        return contextlib.nullcontext(DummyProfiler())
+
+    activities = [torch.profiler.ProfilerActivity.CPU]
+    if (pa := getattr(torch.profiler.ProfilerActivity, device.type.upper(), None)) is not None:
+        activities.append(pa)
+
+    return torch.profiler.profile(
+        activities=activities,
+        schedule=torch.profiler.schedule(
+            wait=config.wait,
+            warmup=config.warmup,
+            active=config.active,
+            repeat=config.repeat,
+        ),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(save_dir / "profiler"),
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True,
+    )
 
 
 def setup_logger(config: Config) -> None:
