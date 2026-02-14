@@ -57,7 +57,7 @@ class Datasets(enum.StrEnum):
                     cache_dir=cache_dir,
                 )
 
-        val_ds = None
+        train_ds, val_ds = ds, None
         if val_size > 0:
             val_ds = ds.take(val_size)
             train_ds = ds.skip(val_size)
