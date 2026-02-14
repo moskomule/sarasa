@@ -1,7 +1,7 @@
 import contextlib
 import os
 import time
-from collections.abc import Iterable
+from typing import Iterator
 
 import torch
 import torch.distributed as dist
@@ -46,7 +46,7 @@ class Trainer:
 
         # setup device
         torch.accelerator.set_device_index(int(os.environ.get("LOCAL_RANK", 0)))
-        self.device = torch.accelerator.current_accelerator(check_available=True)
+        self.device = torch.accelerator.current_accelerator(check_available=True) or torch.device("cpu")
 
         self.gc = GarbageCollector(config.train.gc_freq)
 
@@ -104,14 +104,13 @@ class Trainer:
         if self.grad_accum_steps > 1:
             logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
-        self.amp_context = contextlib.nullcontext()
+        self.amp_context: contextlib.AbstractContextManager = contextlib.nullcontext()
         if config.distributed.name != "fsdp":
             self.amp_context = torch.autocast(
                 device_type=self.device.type,
                 dtype=getattr(torch, config.train.amp_dtype),
             )
 
-        # todo: setup profiler context
         self.profile_context = setup_profiler(self.config.profile, self.device, save_dir=self.config.output_dir)
 
         # setup metrics, checkpointer, evaluator
@@ -173,8 +172,8 @@ class Trainer:
 
     def batch_generator(
         self,
-        data_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
-    ) -> Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]]:
+        data_iter: Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]],
+    ) -> Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]]:
         data_iter = iter(data_iter)
         while True:
             begin = time.perf_counter()
@@ -186,7 +185,7 @@ class Trainer:
 
     def train_step(
         self,
-        batch_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
+        batch_iter: Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]],
     ) -> None:
         self.optimizer.zero_grad()
 
@@ -218,7 +217,9 @@ class Trainer:
 
         if self.config.train.grad_clip is not None:
             torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), self.config.train.grad_clip, foreach=self.device.type == "cuda"
+                self.model.parameters(),
+                self.config.train.grad_clip,
+                foreach=self.device.type == "cuda",
             )
 
         if self.checkpointer is not None:

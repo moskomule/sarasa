@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 from functools import partial
-from typing import Callable, ClassVar, NamedTuple
+from typing import Callable, ClassVar, NamedTuple, cast
 
 import torch
 from torch import nn
@@ -79,6 +79,7 @@ class SDPAttention(nn.Module):
         if nn.attention.current_flash_attention_impl() == "FA4":
             self.sdpa_backends = nn.attention.SDPBackend.FLASH_ATTENTION
         else:
+            # type: ignore
             self.sdpa_backends = [
                 nn.attention.SDPBackend.CUDNN_ATTENTION,
                 nn.attention.SDPBackend.FLASH_ATTENTION,
@@ -112,10 +113,10 @@ class CausalSelfAttention(nn.Module):
         layer_idx: int | None = None,
     ):
         super().__init__()
-        self.layer_idx = layer_idx
-        self.num_heads = config.num_heads
-        self.num_kv_heads = config.num_kv_heads
-        self.hidden_dim = config.hidden_dim
+        self.layer_idx = cast(int, layer_idx)
+        self.num_heads = cast(int, config.num_heads)
+        self.num_kv_heads = cast(int, config.num_kv_heads)
+        self.hidden_dim = cast(int, config.hidden_dim)
         self.head_dim = self.hidden_dim // self.num_heads
         self.c_q = nn.Linear(self.hidden_dim, self.num_heads * self.head_dim, bias=False)
         self.c_k = nn.Linear(self.hidden_dim, self.num_kv_heads * self.head_dim, bias=False)
@@ -127,6 +128,7 @@ class CausalSelfAttention(nn.Module):
             else nn.Identity()
         )
 
+        self.attn: nn.Module
         if config.attn_type == "varlen":
             self.attn = VarlenAttention()
         else:

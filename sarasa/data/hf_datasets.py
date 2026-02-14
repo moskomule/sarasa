@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from functools import partial
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import torch
 from datasets import IterableDataset as HFIterableDataset
@@ -9,6 +9,7 @@ from datasets.distributed import split_dataset_by_node
 from loguru import logger
 from torch.utils.data import IterableDataset
 
+from sarasa.data.tokenizer import BaseTokenizerWrapper
 from sarasa.data.utils import prepare_varlen_metadata
 from sarasa.utils import IGNORE_INDEX, rank, world_size
 
@@ -26,7 +27,7 @@ class HFTextDataset(IterableDataset):
     def __init__(
         self,
         dataset: HFIterableDataset,
-        tokenizer: Callable[[str], list[int]],
+        tokenizer: BaseTokenizerWrapper,
         seq_len: int,
         use_varlen: bool,
         strategy: Literal["streaming", "document_pack_crop", "document_pack_pad"],
@@ -115,12 +116,12 @@ class HFTextDataset(IterableDataset):
                     output_buffer = output_buffer[: self.seq_len + 1]
                     document_buffer.pop(-1)
 
-            output_buffer = torch.tensor(output_buffer[: self.seq_len + 1], dtype=torch.int32)
+            output = torch.tensor(output_buffer[: self.seq_len + 1], dtype=torch.int32)
 
-            input = output_buffer[:-1]
-            label = output_buffer[1:]
+            input = output[:-1]
+            label = output[1:]
             if pad_size > 0:
-                label = label[:-pad_size] + [IGNORE_INDEX] * pad_size
+                label = label[:-pad_size] + label.new_tensor([IGNORE_INDEX] * pad_size)
 
             yield self.post_process_fn({"input": input}), label
 

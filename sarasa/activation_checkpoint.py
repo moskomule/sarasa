@@ -79,5 +79,5 @@ def apply_op_sac(
     ops_to_save = ops_to_save or _ops_sac_save
     return checkpoint_wrapper(
         model,
-        _op_sac_policy(ops_to_save, mm_recompute_shapes, every_nth_mm),
+        _op_sac_policy(ops_to_save, mm_recompute_shapes, every_nth_mm),  # pyrefly: ignore [bad-argument-type]
     )

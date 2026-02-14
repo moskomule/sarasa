@@ -1,12 +1,14 @@
+from typing import Any
+
 import torch
 
 from sarasa.models.attention import VarlenMetaData
 
 
 def prepare_varlen_metadata(
-    input_dict: dict[str, torch.Tensor],
+    input_dict: dict[str, Any],
     bos_token_id: int,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor | VarlenMetaData]:
     # add metadata for varlen attention
 
     assert bos_token_id is not None

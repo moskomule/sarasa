@@ -1,5 +1,5 @@
 from contextlib import AbstractContextManager
-from typing import Callable, Iterable
+from typing import Callable, Iterator
 
 import torch
 import torch.distributed as dist
@@ -13,7 +13,7 @@ class Evaluator:
     def __init__(
         self,
         config: EvaluateConfig,
-        val_loader: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
+        val_loader: Iterator[tuple[dict[str, torch.Tensor], torch.Tensor]],
         amp_context: AbstractContextManager,
         metrics_processor: MetricsProcessor,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
@@ -40,10 +40,11 @@ class Evaluator:
     ) -> None:
         model.eval()
 
-        loss = 0.0
-        num_steps = len(self.val_loader)
+        loss = torch.zeros(1, device=self.device)
+        num_steps = 0
 
         for input_dict, target in self.val_loader:
+            num_steps += 1
             self.metrics_processor.ntokens_since_last_log += target.numel()
             input_dict = {
                 k: v.to(self.device, non_blocking=(self.device.type == "cuda")) for k, v in input_dict.items()
@@ -54,7 +55,9 @@ class Evaluator:
                 dist.all_reduce(valid_tokens, op=dist.ReduceOp.SUM)
             with self.amp_context:
                 pred = model(**input_dict)
-                loss += self.loss_fn(pred, target) / valid_tokens / num_steps
+                loss += self.loss_fn(pred, target) / valid_tokens
+
+        loss /= num_steps
 
         self.metrics_processor.val_log(step=step, val_loss=loss.item())
 

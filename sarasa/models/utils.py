@@ -6,7 +6,7 @@ class RoPE:
     def precompute(
         seq_len: int,
         head_dim: int,
-        device: torch.device = None,
+        device: torch.device | None = None,
         base: float = 10000,
     ):
         channel_range = torch.arange(0, head_dim, 2, dtype=torch.float32, device=device)

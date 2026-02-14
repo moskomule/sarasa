@@ -53,9 +53,6 @@ class ModelConfig:
         assert self.head_dim * self.num_heads == self.hidden_dim
         assert self.num_kv_heads <= self.num_heads and self.num_heads % self.num_kv_heads == 0
 
-        if self.extra is None:
-            self.extra = {}
-
     def create(self) -> BaseModel:
         if self.vocab_size is None or self.seq_len is None:
             raise ValueError("vocab_size and seq_len must be set before creating the model")
@@ -84,7 +81,8 @@ class ModelConfig:
 class BaseModel(nn.Module, abc.ABC):
     # Common interface for all models in Sarasa
 
-    blocks: list[nn.Module]  # TF blocks
+    token_emb: nn.Embedding  # token embedding layer
+    blocks: nn.ModuleList  # TF blocks
     config: ModelConfig
 
     def __init__(
@@ -119,7 +117,7 @@ class BaseModel(nn.Module, abc.ABC):
         # If forward pass has 1 matmul, then backward pass has 2 matmuls
         # Each self-attention has 2 matmuls
         num_flops_per_token = 6 * (
-            (num_params - num_params_emb) + (config.num_layers * config.num_heads * config.head_dim * config.seq_len)
+            (num_params - num_params_emb) + (config.num_layers * config.num_heads * config.head_dim * config.seq_len)  # type: ignore
         )
 
         return num_params, num_flops_per_token

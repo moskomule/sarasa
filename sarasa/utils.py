@@ -13,10 +13,11 @@ from pathlib import Path
 import torch
 from loguru import logger
 from torch import distributed as dist
-from torch import nn
 
 if typing.TYPE_CHECKING:
+    from sarasa.config import FSDP as FSDPConfig
     from sarasa.config import Config, Distributed, Profile
+    from sarasa.models import BaseModel
 
 
 IGNORE_INDEX = -100
@@ -26,7 +27,7 @@ def setup_profiler(
     config: Profile,
     device: torch.device,
     save_dir: Path,
-) -> torch.profiler.profile:
+) -> torch.profiler.profile | contextlib.nullcontext:
     if not config.enabled:
 
         class DummyProfiler:
@@ -48,7 +49,7 @@ def setup_profiler(
             active=config.active,
             repeat=config.repeat,
         ),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(save_dir / "profiler"),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(str(save_dir / "profiler")),
         record_shapes=True,
         profile_memory=True,
         with_stack=True,
@@ -84,7 +85,7 @@ def setup_logger(config: Config) -> None:
 @contextlib.contextmanager
 def set_dtype(
     dtype: torch.dtype,
-) -> None:
+) -> typing.Generator[None, None, None]:
     old_dtype = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
     try:
@@ -141,13 +142,6 @@ def rank() -> int:
     return dist.get_rank()
 
 
-@cache
-def local_rank() -> int:
-    if not dist.is_initialized():
-        return 0
-    return dist.get_local_rank()
-
-
 def init_distributed(
     backend: str,
     init_timeout_seconds: int,
@@ -177,7 +171,7 @@ def update_timeout(
 
 def apply_distributed(
     config: Distributed,
-    model: nn.Module,
+    model: BaseModel,
     device: torch.device,
     compile: bool,
 ) -> None:
@@ -189,13 +183,17 @@ def apply_distributed(
         if compile:
             torch._dynamo.config.optimize_ddp = "ddp_optimizer"
 
+        # pyrefly: ignore [invalid-param-spec]
         replicate(model, device_mesh=mesh, bucket_cap_mb=100)
         logger.info("Applied DDP to the model")
 
     elif config.name == "fsdp":
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
-        # todo: make dtypes configurable
+        config = typing.cast(FSDPConfig, config)
+        config.amp_dtype = typing.cast(str, config.amp_dtype)
+        config.dtype = typing.cast(str, config.dtype)
+
         mp_policy = MixedPrecisionPolicy(
             param_dtype=getattr(torch, config.amp_dtype),
             reduce_dtype=getattr(torch, config.dtype),
