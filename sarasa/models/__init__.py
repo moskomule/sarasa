@@ -35,7 +35,6 @@ class ModelConfig:
 
     attn_type: Literal["sdpa", "varlen"] = "sdpa"
     """ Attention type, either standard dense attention (sdpa) or variable-length attention (varlen)"""
-    bos_token_id: int | None = None  # required if attn_type is varlen
 
     extra: dict[str, int | float | bool | str] = dataclasses.field(default_factory=dict)
     """ Extra model-specific configurations. 
@@ -94,13 +93,6 @@ class BaseModel(nn.Module, abc.ABC):
     ):
         super().__init__()
         self.config = config
-        if self.config.attn_type == "varlen":
-            from sarasa.models.utils import create_varlen_metadata_prehook
-
-            self.register_forward_pre_hook(
-                create_varlen_metadata_prehook(bos_token_id=config.bos_token_id),
-                with_kwargs=True,
-            )
 
     @abc.abstractmethod
     @torch.no_grad()
@@ -140,5 +132,5 @@ class BaseModel(nn.Module, abc.ABC):
         metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
         # Forward pass of the model, input is (B, T) token ids, output is (B, T, vocab_size) logits
-        # metadata is used for, e.g., variable-length attention, and is prepared by a forward pre-hook if needed
+        # metadata is used for, e.g., variable-length attention
         pass

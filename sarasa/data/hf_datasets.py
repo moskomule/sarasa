@@ -1,67 +1,16 @@
-import enum
 from collections.abc import Iterable
+from functools import partial
 from typing import Any, Callable, Literal
 
 import torch
 from datasets import IterableDataset as HFIterableDataset
-from datasets import disable_progress_bars, load_dataset
+from datasets import disable_progress_bars
 from datasets.distributed import split_dataset_by_node
 from loguru import logger
 from torch.utils.data import IterableDataset
 
+from sarasa.data.utils import prepare_varlen_metadata
 from sarasa.utils import IGNORE_INDEX, rank, world_size
-
-
-class Datasets(enum.StrEnum):
-    c4 = enum.auto()
-    fineweb_edu = enum.auto()
-    fineweb_edu_100b = enum.auto()
-    fineweb_edu_dedup = enum.auto()
-
-    def load(
-        self,
-        cache_dir: str | None,
-        val_size: int,
-    ) -> tuple[HFIterableDataset, HFIterableDataset]:
-        match self:
-            case Datasets.c4:
-                ds = load_dataset(
-                    "allenai/c4",
-                    name="en",
-                    split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
-                )
-            case Datasets.fineweb_edu:
-                ds = load_dataset(
-                    "HuggingFaceFW/fineweb-edu",
-                    name="default",
-                    split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
-                )
-            case Datasets.fineweb_edu_100b:
-                ds = load_dataset(
-                    "HuggingFaceFW/fineweb-edu",
-                    name="sample-100BT",
-                    split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
-                )
-            case Datasets.fineweb_edu_dedup:
-                ds = load_dataset(
-                    "HuggingFaceTB/smollm-corpus",
-                    "fineweb-edu-dedup",
-                    split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
-                )
-
-        train_ds, val_ds = ds, None
-        if val_size > 0:
-            val_ds = ds.take(val_size)
-            train_ds = ds.skip(val_size)
-        return train_ds, val_ds
 
 
 class HFTextDataset(IterableDataset):
@@ -70,6 +19,7 @@ class HFTextDataset(IterableDataset):
         dataset: HFIterableDataset,
         tokenizer: Callable[[str], list[int]],
         seq_len: int,
+        use_varlen: bool,
         infinite: bool = True,
         strategy: Literal["default", "bos_aligned_crop", "bos_aligned_pad"] = "default",
         buffer_size: int = 1_000,
@@ -84,6 +34,9 @@ class HFTextDataset(IterableDataset):
         self.infinite = infinite
         self.strategy = strategy
         self.buffer_size = buffer_size
+        self.post_process_fn = (
+            partial(prepare_varlen_metadata, bos_token_id=tokenizer.bos_token_id) if use_varlen else lambda x: x
+        )
 
     def _text_processor(
         self,
@@ -110,7 +63,7 @@ class HFTextDataset(IterableDataset):
                 self.buffer = self.buffer[max_buffer_token_len:]
                 input = x[:-1]
                 label = x[1:]
-                yield {"input": input}, label
+                yield self.post_process_fn({"input": input}), label
 
     def _bos_aligned_iter(
         self,
@@ -159,7 +112,7 @@ class HFTextDataset(IterableDataset):
             if pad_size > 0:
                 label = label[:-pad_size] + [IGNORE_INDEX] * pad_size
 
-            yield {"input": input}, label
+            yield self.post_process_fn({"input": input}), label
 
             output_buffer = []
             pad_size = 0

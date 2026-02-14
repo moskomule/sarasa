@@ -54,12 +54,15 @@ class Trainer:
         init_distributed(config.distributed.backend, config.distributed.init_timeout_seconds)
 
         # setup data and tokenizer -> use vocab size for model setup
-        data = config.data.create(batch_size=config.train.local_batch_size, val_cfg=config.evaluate)
+        data = config.data.create(
+            batch_size=config.train.local_batch_size,
+            val_cfg=config.evaluate,
+            use_varlen=config.model.attn_type == "varlen",
+        )
         self.data_loader = data["train_loader"]  # setup data loader
         val_loader = data.get("val_loader", None)
 
-        vocab_size = len(data["tokenizer"])
-        self.config.model.vocab_size = vocab_size
+        self.config.model.vocab_size = len(data["tokenizer"])
 
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
