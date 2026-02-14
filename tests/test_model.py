@@ -37,10 +37,11 @@ def test_model_shape_varlen(name):
         seq_len=16,
         attn_type="varlen",
     )
-    input = torch.tensor([[0, 1, 1, 1, 0, 1, 1]], dtype=torch.long)
+    input = torch.tensor([0, 1, 1, 1, 0, 1, 1], dtype=torch.long)
     input_dict = {"input": input}
     input_dict = prepare_varlen_metadata(input_dict, bos_token_id=0)
+    input_dict["input"] = input_dict["input"].unsqueeze(0)  # collate
     with torch.device("meta"):
         model = config.create()
         output = model(**input_dict)
-    assert output.shape == (1, input.size(1), config.vocab_size)
+    assert output.shape == (1, input.size(0), config.vocab_size)

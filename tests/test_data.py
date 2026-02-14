@@ -4,7 +4,7 @@ from sarasa.data.utils import prepare_varlen_metadata
 
 
 def test_create_varlen_metadata():
-    input = torch.tensor([[0, 1, 1, 1, 0, 1, 1]], dtype=torch.long)
+    input = torch.tensor([0, 1, 1, 1, 0, 1, 1], dtype=torch.long)
     input_dict = {"input": input}
     bos_token_id = 0
     input_dict = prepare_varlen_metadata(input_dict, bos_token_id)
