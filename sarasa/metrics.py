@@ -205,7 +205,7 @@ class MetricsProcessor:
             reporter.config(config=dataclasses.asdict(config))
 
         self.device_mem_monitor = DeviceMemoryMonitor(device)
-        self.log_freq = config.metrics.log_freq
+        self.freq = config.metrics.freq
         self.time_last_log = time.perf_counter()
         gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
         logger.info(f"Detected device: {self.device_mem_monitor.device_name}, Peak FLOPS: {gpu_peak_flops}")
@@ -219,7 +219,7 @@ class MetricsProcessor:
         self,
         step: int,
     ) -> bool:
-        return step == 1 or step % self.log_freq == 0
+        return step == 1 or step % self.freq == 0
 
     def log(
         self,
@@ -230,7 +230,7 @@ class MetricsProcessor:
     ) -> None:
         time_delta = time.perf_counter() - self.time_last_log
         device_mem_stats = self.device_mem_monitor.get_peak_stats()
-        time_ete = time_delta / self.log_freq
+        time_ete = time_delta / self.freq
         time_data_load = sum(self.data_load_times) / len(self.data_load_times) if self.data_load_times else 0.0
         time_data_load_perc = 100 * time_data_load / time_ete if time_ete > 0 else 0.0
 
