@@ -65,7 +65,7 @@ def create_varlen_metadata_prehook(
         (bos_positions,) = (input.flatten() == bos_token_id).nonzero(as_tuple=True)
         cu_seq = torch.cat((
             bos_positions,
-            bos_positions.new_tensor(input.size(0) * input.size(1)),
+            bos_positions.new_tensor([input.size(0) * input.size(1)]),
         ))
         max_seqlen = torch.diff(cu_seq).max()
         metadata = VarlenMetaData(
