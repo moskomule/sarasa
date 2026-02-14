@@ -186,7 +186,7 @@ class GPT(BaseModel):
         x0 = x  # save initial normalized embedding for x0 residual
         for block, resid_lambda, x0_lambda in zip(self.blocks, self.resid_lambdas, self.x0_lambdas):
             x = resid_lambda * x + x0_lambda * x0
-            x = block(x, cos_sin)
+            x = block(x, cos_sin, metadata=metadata)
         x = self.norm(x)
         logits = self.lm_head(x)  # (B, T, padded_vocab_size) <- very big tensor, large amount of memory
         logits = logits[..., : self.vocab_size]  # slice to remove padding

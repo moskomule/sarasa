@@ -137,7 +137,7 @@ class Llama3(BaseModel):
         cos_sin = self.cos[:, :T], self.sin[:, :T]
 
         for block in self.blocks:
-            x = block(x, cos_sin)
+            x = block(x, cos_sin, metadata=metadata)
 
         x = self.norm(x)
         logits = self.output(x)
