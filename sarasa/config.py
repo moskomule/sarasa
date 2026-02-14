@@ -58,11 +58,13 @@ class LRScheduler:
             case "sqrt":
                 decay = torch.optim.lr_scheduler.LambdaLR(
                     optimizer,
-                    lr_lambda=lambda step: max(
-                        self.min_lr_factor,
-                        (decay_steps - step) / decay_steps,
-                    )
-                    ** 0.5,
+                    lr_lambda=lambda step: (
+                        max(
+                            self.min_lr_factor,
+                            (decay_steps - step) / decay_steps,
+                        )
+                        ** 0.5
+                    ),
                 )
             case "cosine":
                 decay = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -112,7 +114,7 @@ class Train:
     grad_accum_steps = global_batch_size // (local_batch_size * num_devices)
     """
 
-    use_fa4: bool = True
+    use_fa4: bool = False
     """Whether to use FA4 flash attention if available."""
 
     use_sac: bool = False
