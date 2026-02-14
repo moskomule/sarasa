@@ -42,7 +42,6 @@ def create_varlen_metadata_prehook(
 
     from sarasa.models.attention import VarlenMetaData
 
-    @torch.compiler.disable
     def prepare_varlen_metadata_prehook[A, K](
         module: nn.Module,
         args: A,
@@ -51,7 +50,7 @@ def create_varlen_metadata_prehook(
         if kwargs.get("metadata") is not None:
             return args, kwargs
 
-        if args[0].device == "meta":
+        if args[0].device.type == "meta":
             # need a dummy metadata for shape inference
             kwargs["metadata"] = VarlenMetaData(
                 cu_seq_q=torch.zeros(1, dtype=torch.int64),
@@ -78,4 +77,4 @@ def create_varlen_metadata_prehook(
         kwargs["metadata"] = metadata
         return args, kwargs
 
-    return prepare_varlen_metadata_prehook
+    return torch.compiler.disable(prepare_varlen_metadata_prehook)
