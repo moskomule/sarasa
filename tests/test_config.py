@@ -39,7 +39,7 @@ def config_py(tmp_path, num_configs) -> str:
     lines = ["from sarasa.config import *"]
     for i in range(num_configs):
         lines.append(
-            f"config{i} = Config(Model(), AdamW(), LRScheduler(), Data(), checkpoint=Checkpoint(save_freq=10))"
+            f"config{i} = Config(Model(), AdamW(), LRScheduler(), Data(), checkpoint=Checkpoint(freq=10))"
         )
     with open(file, "w") as f:
         f.write("\n".join(lines))
@@ -50,14 +50,14 @@ def config_py(tmp_path, num_configs) -> str:
 def test_config_loading(config_py, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py])
     cfg = Config.from_cli()
-    assert cfg.checkpoint.save_freq == 10
+    assert cfg.checkpoint.freq == 10
 
 
 @pytest.mark.parametrize("num_configs", [1])
 def test_config_loading_overriding(config_py, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py, "--checkpoint.save_freq", "100"])
+    monkeypatch.setattr(sys, "argv", ["program", "--config_file", config_py, "--checkpoint.freq", "100"])
     cfg = Config.from_cli()
-    assert cfg.checkpoint.save_freq == 100
+    assert cfg.checkpoint.freq == 100
 
 
 @pytest.mark.parametrize("num_configs", [0, 2])

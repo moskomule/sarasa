@@ -2,6 +2,10 @@
 
 A minimum LLM training framework built on pure PyTorch with simplicity and extensibility.
 
+> [! CAUTION]
+> sarasa is developed by an error-prone human and thus may contain many bugs. 
+> Use it at your own risk.
+
 ## Installation
 
 ```bash
@@ -20,11 +24,11 @@ uv add sarasa[cpu|cu128|cu130]
 - Flexible configuration system with command-line overrides
 - Support from a single GPU to multiple GPUs (simple DDP and FSDP for now)
 - Selective activation checkpointing (SAC) for memory efficiency
-- Async distributed checkpoint saving
+- Async distributed checkpoint saving / loading
+- Profiling
 
-- [ ] Checkpoint loading
 - [ ] FP8 training
-- [ ] Profiling
+- [ ] Post-training
 
 ## Usage
 
@@ -45,17 +49,23 @@ uv run torchrun --nproc_per_node="gpu" main.py \
 [--train.local-batch-size 8 ...] # override config options as needed
 ```
 
-### Extending with Custom Components
+For details, run
 
-Extending Sarasa is as simple as defining your own configuration dataclasses with `create` methods for custom models, optimizers, data loaders, etc. 
+```bash
+uv run torchrun --nproc_per_node="gpu" main.py --help
+```
+
+### Extending `sarasa` with Custom Components
+
+Extending `sarasa` is as simple as defining your own configuration dataclasses with `create` methods.
+Users can define custom configurations for models, optimizers, learning-rate schedulers, and datasets.
 Here's an example of using a custom optimizer:
 
 ```python
 from sarasa import Trainer, Config
+from custom_optim import CustomOptimizer, CustomOptimizer2
 
-class CustomOptimizer(torch.optim.Optimizer):
-    ...
-
+@dataclass
 class CustomOptim:
     lr: float = ...
 
@@ -64,13 +74,14 @@ class CustomOptim:
     ) -> torch.optim.Optimizer:
         return CustomOptimizer(model.parameters(), lr=self.lr, ...)
 
+@dataclass
 class CustomOptim2:
     lr: float = ...
 
     def create(self,
                model: torch.nn.Module
     ) -> torch.optim.Optimizer:
-        return CustomOptimizer(model.parameters(), lr=self.lr, ...)
+        return CustomOptimizer2(model.parameters(), lr=self.lr, ...)
 
 
 if __name__ == "__main__":
@@ -84,6 +95,8 @@ From the command line, you can specify which custom optimizer to use:
 
 ```bash
 python script.py optim:custom_optim --optim.lr 0.001 ...
+# or
+python script.py optim:custom_optim2 --optim.lr 0.002 ...
 ```
 
 (As tyro automatically converts config class names from CamelCase to snake_case, config class names are recommended not to include `Config` suffixes.)

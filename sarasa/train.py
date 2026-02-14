@@ -12,10 +12,19 @@ from torch.nn import functional as F
 from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
 from sarasa.config import Config
+from sarasa.evaluate import Evaluator
 from sarasa.metrics import MetricsProcessor
-from sarasa.utils import GarbageCollector, apply_distributed, init_distributed, set_dtype, update_timeout, world_size
-
-IGNORE_INDEX = -100
+from sarasa.utils import (
+    IGNORE_INDEX,
+    GarbageCollector,
+    apply_distributed,
+    init_distributed,
+    set_dtype,
+    setup_logger,
+    setup_profiler,
+    update_timeout,
+    world_size,
+)
 
 
 class Trainer:
@@ -25,6 +34,10 @@ class Trainer:
         config: Config,
     ) -> None:
         self.config = config
+
+        # only rank 0 logs
+        setup_logger(config)
+
         logger.info(f"Initializing Trainer with config: {self.config}")
 
         # set seed
@@ -41,13 +54,15 @@ class Trainer:
         init_distributed(config.distributed.backend, config.distributed.init_timeout_seconds)
 
         # setup data and tokenizer -> use vocab size for model setup
-        data = config.data.create(batch_size=config.train.local_batch_size)
+        data = config.data.create(
+            batch_size=config.train.local_batch_size,
+            val_cfg=config.evaluate,
+            use_varlen=config.model.attn_type == "varlen",
+        )
         self.data_loader = data["train_loader"]  # setup data loader
-        self.val_loader = data.get("val_loader", None)  # setup eval data loader
-        self.tokenizer = data["tokenizer"]  # setup tokenizer
+        val_loader = data.get("val_loader", None)
 
-        vocab_size = len(self.tokenizer)
-        self.config.model.vocab_size = vocab_size
+        self.config.model.vocab_size = len(data["tokenizer"])
 
         # setup model, optimizer, lr scheduler
         with torch.device("meta"), set_dtype(getattr(torch, config.train.dtype)):
@@ -66,8 +81,8 @@ class Trainer:
         if config.train.compile:
             logger.info("Compiling the model")
             for block in self.model.blocks:
-                block.compile(fullgraph=True, dynamic=False)
-            self.model.compile(dynamic=False)
+                block.compile(fullgraph=True)
+            self.model.compile()
             self.loss_fn = torch.compile(self.loss_fn, fullgraph=True, dynamic=False)
 
         if world_size() > 1:
@@ -84,19 +99,10 @@ class Trainer:
         self.optimizer = self.config.optim.create(self.model)
         self.lr_scheduler = self.config.lr_scheduler.create(self.optimizer, config.train.steps)
 
-        # setup metrics and checkpointer
-        # todo: configure num_flops_per_token
-        self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
-        self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.save_freq > 0 else None
-
-        dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
-        logger.info(
-            f"{self.device.type.upper()} memory: {dev_mem_stats.max_reserved_gib:.2f} GiB for model initialization"
-        )
-
         self.step = 0
         self.grad_accum_steps = config.train.global_batch_size // (config.train.local_batch_size * world_size())
-        logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
+        if self.grad_accum_steps > 1:
+            logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context = contextlib.nullcontext()
         if config.distributed.name != "fsdp":
@@ -106,7 +112,21 @@ class Trainer:
             )
 
         # todo: setup profiler context
-        self.profile_context = contextlib.nullcontext()
+        self.profile_context = setup_profiler(self.config.profile, self.device, save_dir=self.config.output_dir)
+
+        # setup metrics, checkpointer, evaluator
+        self.metrics_processor = MetricsProcessor(config, self.device, flops_per_token)
+        self.checkpointer = Checkpointer(config, self.model) if config.checkpoint.freq > 0 else None
+        self.evaluator = (
+            Evaluator(config.evaluate, val_loader, self.amp_context, self.metrics_processor, self.loss_fn, self.device)
+            if val_loader is not None
+            else None
+        )
+
+        dev_mem_stats = self.metrics_processor.device_mem_monitor.get_peak_stats()
+        logger.info(
+            f"{self.device.type.upper()} memory: {dev_mem_stats.max_reserved_gib:.2f} GiB for model initialization"
+        )
 
         if config.train.use_fa4:
             logger.info("Using FA4 flash attention")
@@ -123,7 +143,7 @@ class Trainer:
             logger.info("Starting training...")
 
             self.model.train()
-            with self.profile_context:
+            with self.profile_context as profiler:
                 data_iter = self.batch_generator(self.data_loader)
                 for _ in range(self.config.train.steps):
                     self.step += 1
@@ -134,11 +154,14 @@ class Trainer:
                         logger.warning("Data loader exhausted during training.")
                         break
 
-                    if self.checkpointer is not None:
+                    if self.checkpointer is not None and self.checkpointer.trigger(self.step):
                         self.checkpointer.save(self.step)
 
-                    if self.config.train.val_freq > 0 and self.step % self.config.train.val_freq == 0:
-                        self.evaluate()
+                    if self.evaluator is not None and self.evaluator.trigger(self.step):
+                        logger.info("Starting evaluation...")
+                        self.evaluator.evaluate(self.model, self.step)
+
+                    profiler.step()
 
                     if world_size() > 1 and self.step == 1:
                         update_timeout(self.config.distributed.train_timeout_seconds, self.device)
@@ -206,7 +229,7 @@ class Trainer:
 
         loss = torch.stack(losses).sum()
 
-        if not self.metrics_processor.should_log(self.step):
+        if not self.metrics_processor.trigger(self.step):
             return
 
         if world_size() > 1:
@@ -242,15 +265,6 @@ class Trainer:
             ignore_index=IGNORE_INDEX,
             reduction="sum",
         )
-
-    def evaluate(self):
-        raise NotImplementedError
-
-    def evaluation_step(
-        self,
-        batch_iter: Iterable[tuple[dict[str, torch.Tensor], torch.Tensor]],
-    ) -> None:
-        raise NotImplementedError
 
     def close(self) -> None:
         if self.checkpointer is not None:

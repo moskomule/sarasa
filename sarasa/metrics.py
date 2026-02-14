@@ -205,7 +205,7 @@ class MetricsProcessor:
             reporter.config(config=dataclasses.asdict(config))
 
         self.device_mem_monitor = DeviceMemoryMonitor(device)
-        self.log_freq = config.metrics.log_freq
+        self.freq = config.metrics.freq
         self.time_last_log = time.perf_counter()
         gpu_peak_flops = get_peak_flops(self.device_mem_monitor.device_name)
         logger.info(f"Detected device: {self.device_mem_monitor.device_name}, Peak FLOPS: {gpu_peak_flops}")
@@ -215,11 +215,11 @@ class MetricsProcessor:
         self.data_load_times: list[float] = []
         self.reset()
 
-    def should_log(
+    def trigger(
         self,
         step: int,
     ) -> bool:
-        return step == 1 or step % self.log_freq == 0
+        return step == 1 or step % self.freq == 0
 
     def log(
         self,
@@ -230,7 +230,7 @@ class MetricsProcessor:
     ) -> None:
         time_delta = time.perf_counter() - self.time_last_log
         device_mem_stats = self.device_mem_monitor.get_peak_stats()
-        time_ete = time_delta / self.log_freq
+        time_ete = time_delta / self.freq
         time_data_load = sum(self.data_load_times) / len(self.data_load_times) if self.data_load_times else 0.0
         time_data_load_perc = 100 * time_data_load / time_ete if time_ete > 0 else 0.0
 
@@ -275,19 +275,39 @@ class MetricsProcessor:
 
         self.reset()
 
-    def reset(self) -> None:
-        self.ntokens_since_last_log = 0
-        self.data_load_times.clear()
-        self.time_last_log = time.perf_counter()
-        self.device_mem_monitor.reset_peak_stats()
-
     def val_log(
         self,
         step: int,
         val_loss: float,
         extra_metrics: dict[str, float] | None = None,
     ) -> None:
-        raise NotImplementedError()
+        time_delta = time.perf_counter() - self.time_last_log
+        device_mem_stats = self.device_mem_monitor.get_peak_stats()
+
+        metrics = {
+            "val/loss": val_loss,
+            "val/memory/max_active(GiB)": device_mem_stats.max_active_gib,
+            "val/memory/max_active(%)": device_mem_stats.max_active_perc,
+            "val/memory/max_reserved(GiB)": device_mem_stats.max_reserved_gib,
+            "val/memory/max_reserved(%)": device_mem_stats.max_reserved_perc,
+            "val/time(s)": time_delta,
+        }
+
+        if extra_metrics is not None:
+            metrics.update(extra_metrics)
+
+        for reporter in self.reporters:
+            reporter.log(metrics, step)
+
+        logger.info(f"[Eval Step {step:>10}] val loss: {val_loss:.4f}, val time: {time_delta:.2f} sec")
+
+        self.reset()
+
+    def reset(self) -> None:
+        self.ntokens_since_last_log = 0
+        self.data_load_times.clear()
+        self.time_last_log = time.perf_counter()
+        self.device_mem_monitor.reset_peak_stats()
 
     def close(self) -> None:
         for reporter in self.reporters:

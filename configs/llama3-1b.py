@@ -1,4 +1,4 @@
-from sarasa.config import FSDP, AdamW, Config, Data, LRScheduler, Model, Train
+from sarasa.config import FSDP, AdamW, Config, Data, Evaluate, LRScheduler, Model, Train
 
 config = Config.create(
     model=Model(
@@ -11,17 +11,21 @@ config = Config.create(
         rms_eps=1e-5,
         rms_learnable=True,
     ),
-    train=Train(
-        local_batch_size=32,
-        global_batch_size=1024,
-        use_sac=True,
-    ),
     data=Data(tokenizer_path="./tokenizer"),
     lr_scheduler=LRScheduler(
         decay_type="linear",
         warmup_steps=0,
     ),
     optim=AdamW(lr=3e-4),
+    train=Train(
+        local_batch_size=32,
+        global_batch_size=1024,
+        use_sac=True,
+    ),
+    evaluate=Evaluate(
+        freq=1000,
+        val_size=8192,
+    ),
     distributed=FSDP(),
-    seed=12,
+    seed=0,
 )

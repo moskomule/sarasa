@@ -2,16 +2,25 @@ from __future__ import annotations
 
 import abc
 import dataclasses
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from loguru import logger
 from torch import nn
 
+if TYPE_CHECKING:
+    from sarasa.models.attention import VarlenMetaData
+
 
 @dataclasses.dataclass
 class ModelConfig:
     name: Literal["nanochat_gpt", "llama3"] = "nanochat_gpt"
+    """ Name of the model architecture to use.
+
+    - nanochat_gpt: GPT architecture in NanoChat
+    - llama3: LLaMA 3 architecture ()
+    """
+
     num_layers: int = 12
     head_dim: int = 128
 
@@ -24,6 +33,15 @@ class ModelConfig:
     rms_eps: float | None = None  # epsilon for RMSNorm, default to library default if None
     rms_learnable: bool = False  # whether RMSNorm has learnable scale parameter
 
+    attn_type: Literal["sdpa", "varlen"] = "sdpa"
+    """ Attention type, either standard dense attention (sdpa) or variable-length attention (varlen)"""
+
+    extra: dict[str, int | float | bool | str] = dataclasses.field(default_factory=dict)
+    """ Extra model-specific configurations. 
+    Expected to be used in config files, but can be updated in CLI,
+    like --model.extra '{"multiple_of": 1024, "ffn_dim_multiplier": 1.4}'.
+    """
+
     def __post_init__(self):
         # infer hidden_dim, num_heads, num_kv_heads if not provided using the rules presented in nanochat
         self.hidden_dim = self.hidden_dim or (self.num_layers * 64 + self.head_dim - 1) // self.head_dim * self.head_dim
@@ -34,6 +52,9 @@ class ModelConfig:
         assert self.hidden_dim % self.head_dim == 0
         assert self.head_dim * self.num_heads == self.hidden_dim
         assert self.num_kv_heads <= self.num_heads and self.num_heads % self.num_kv_heads == 0
+
+        if self.extra is None:
+            self.extra = {}
 
     def create(self) -> BaseModel:
         if self.vocab_size is None or self.seq_len is None:
@@ -66,6 +87,13 @@ class BaseModel(nn.Module, abc.ABC):
     blocks: list[nn.Module]  # TF blocks
     config: ModelConfig
 
+    def __init__(
+        self,
+        config: ModelConfig,
+    ):
+        super().__init__()
+        self.config = config
+
     @abc.abstractmethod
     @torch.no_grad()
     def init_weights(self) -> None:
@@ -95,3 +123,14 @@ class BaseModel(nn.Module, abc.ABC):
         )
 
         return num_params, num_flops_per_token
+
+    @abc.abstractmethod
+    def forward(
+        self,
+        input: torch.Tensor,
+        *,
+        metadata: VarlenMetaData | None = None,
+    ) -> torch.Tensor:
+        # Forward pass of the model, input is (B, T) token ids, output is (B, T, vocab_size) logits
+        # metadata is used for, e.g., variable-length attention
+        pass

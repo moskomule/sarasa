@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from sarasa.models import BaseModel, ModelConfig
-from sarasa.models.attention import CausalSelfAttention
+from sarasa.models.attention import CausalSelfAttention, VarlenMetaData
 from sarasa.models.utils import RoPE
 
 
@@ -48,8 +48,10 @@ class Block(nn.Module):
         self,
         x: torch.Tensor,
         cos_sin: tuple[torch.Tensor, torch.Tensor],
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
-        x = x + self.attention(self.attn_norm(x), cos_sin)
+        x = x + self.attention(self.attn_norm(x), cos_sin, metadata=metadata)
         x = x + self.mlp(self.mlp_norm(x))
         return x
 
@@ -58,11 +60,11 @@ class Llama3(BaseModel):
     def __init__(
         self,
         config: ModelConfig,
-        multiple_of: int = 1024,
-        ffn_dim_multiplier: float | None = 1.4,
     ):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
+        multiple_of = config.extra.get("multiple_of", 1024)
+        ffn_dim_multiplier = config.extra.get("ffn_dim_multiplier", 1.4)
+
         self.token_emb = nn.Embedding(config.vocab_size, config.hidden_dim)
         self.max_seq_len = config.seq_len * 16
         self.head_dim = config.head_dim
@@ -127,13 +129,15 @@ class Llama3(BaseModel):
     def forward(
         self,
         input: torch.Tensor,
+        *,
+        metadata: VarlenMetaData | None = None,
     ) -> torch.Tensor:
         B, T = input.size()
         x = self.token_emb(input)  # (B, T, C)
         cos_sin = self.cos[:, :T], self.sin[:, :T]
 
         for block in self.blocks:
-            x = block(x, cos_sin)
+            x = block(x, cos_sin, metadata=metadata)
 
         x = self.norm(x)
         logits = self.output(x)
