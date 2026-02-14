@@ -39,7 +39,7 @@ class Checkpointer:
         model: torch.nn.Module,
     ):
         self.config = config
-        self.checkpoint_freq = config.checkpoint.save_freq
+        self.freq = config.checkpoint.freq
         self.checkpoint_dir = Path(config.output_dir) / "checkpoints"
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.async_mode = AsyncMode(config.checkpoint.async_mode)
@@ -57,7 +57,7 @@ class Checkpointer:
         self,
         step: int,
     ) -> None:
-        if step % self.checkpoint_freq != 0:
+        if step % self.freq != 0:
             return
 
         begin = time.perf_counter()
