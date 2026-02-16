@@ -16,7 +16,7 @@ from torch import distributed as dist
 
 if typing.TYPE_CHECKING:
     from sarasa.config import FSDP as FSDPConfig
-    from sarasa.config import Config, Distributed, Profile
+    from sarasa.config import Config, Distributed, Dtype, Profile
     from sarasa.models import BaseModel
 
 
@@ -191,8 +191,8 @@ def apply_distributed(
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
         config = typing.cast(FSDPConfig, config)
-        config.amp_dtype = typing.cast(str, config.amp_dtype)
-        config.dtype = typing.cast(str, config.dtype)
+        config.dtype = typing.cast(Dtype, config.dtype)
+        config.amp_dtype = typing.cast(Dtype, config.amp_dtype)
 
         mp_policy = MixedPrecisionPolicy(
             param_dtype=getattr(torch, config.amp_dtype),
