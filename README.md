@@ -3,7 +3,7 @@
 A minimum LLM training framework built on pure PyTorch with simplicity and extensibility.
 
 > [!CAUTION]
-> sarasa is developed by an error-prone human and thus may contain many bugs. 
+> `sarasa` is developed by an error-prone human and thus may contain many bugs. 
 > Use it at your own risk.
 
 ## Installation
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     trainer.train()
 ```
 
-Thanks to [tyro](https://github.com/brentyi/tyro)'s type support, Sarasa can automatically recognize multiple custom optimizer types.
+Thanks to [tyro](https://github.com/brentyi/tyro)'s type support, `sarasa` can automatically recognize multiple custom optimizer types.
 From the command line, you can specify which custom optimizer to use:
 
 ```bash
