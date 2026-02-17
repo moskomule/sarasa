@@ -86,13 +86,17 @@ class HFTextDataset(IterableDataset):
         document_buffer: list[list[int]] = []
         output_buffer: list[int] = []
         pad_size = 0
+        data_iter = iter(data_iter)
 
-        for sample in iter(data_iter):
+        while True:
             # fill the buffer
-            while len(document_buffer) < self.buffer_size:
+            while (sample := next(data_iter, None)) is not None and (len(document_buffer) < self.buffer_size):
                 sample_text = self._text_processor(sample)
                 sample_tokens = self.tokenizer.encode(sample_text)
                 document_buffer.append(sample_tokens)
+
+            if sample is None:
+                break
 
             document_buffer.sort(key=len, reverse=True)
 
@@ -104,6 +108,9 @@ class HFTextDataset(IterableDataset):
                     document_buffer.pop(i)
                 else:
                     i += 1
+
+            if len(output_buffer) == 0:
+                continue
 
             # if no sequence can fit, pick the shortest one and crop it to fit / pad bos token to fit
             if len(output_buffer) < self.seq_len + 1:
