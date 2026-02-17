@@ -15,7 +15,6 @@ from loguru import logger
 from torch import distributed as dist
 
 if typing.TYPE_CHECKING:
-    from sarasa.config import FSDP as FSDPConfig
     from sarasa.config import Config, Distributed, Profile
     from sarasa.models import BaseModel
 
@@ -189,6 +188,8 @@ def apply_distributed(
 
     elif config.name == "fsdp":
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+
+        from sarasa.config import FSDP as FSDPConfig
 
         config = typing.cast(FSDPConfig, config)
         config.amp_dtype = typing.cast(str, config.amp_dtype)

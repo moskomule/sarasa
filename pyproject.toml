@@ -21,6 +21,17 @@ dependencies = [
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+format-jinja = """
+    {%- if distance == 0 -%}
+        {{ base }}
+    {%- else -%}
+        {{ base }}.dev{{ distance }}
+    {%- endif -%}
+"""
+
 [dependency-groups]
 dev = [
     "pyrefly>=0.52.0",
