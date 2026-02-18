@@ -38,9 +38,7 @@ def config_py(tmp_path, num_configs) -> str:
     file = tmp_path / "config.py"
     lines = ["from sarasa.config import *"]
     for i in range(num_configs):
-        lines.append(
-            f"config{i} = Config(Model(), AdamW(), LRScheduler(), Data(), checkpoint=Checkpoint(freq=10))"
-        )
+        lines.append(f"config{i} = Config(Model(), AdamW(), LRScheduler(), Data(), checkpoint=Checkpoint(freq=10))")
     with open(file, "w") as f:
         f.write("\n".join(lines))
     yield str(file)
@@ -73,10 +71,3 @@ def test_config_loading_filetype_error(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["program", "--config_file", str(config_file)])
     with pytest.raises(ValueError):
         Config.from_cli()
-
-
-def test_config_post_init(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["program", "distributed:fsdp"])
-    config = Config.from_cli()  # just check no error is raised
-    assert config.distributed.dtype == config.train.dtype
-    assert config.distributed.amp_dtype == config.train.amp_dtype

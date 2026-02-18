@@ -90,6 +90,8 @@ class Trainer:
                 config.distributed,
                 self.model,
                 device=self.device,
+                param_dtype=getattr(torch, config.train.amp_dtype),
+                reduce_dtype=getattr(torch, config.train.dtype),
                 compile=config.train.compile,
             )
 
@@ -105,7 +107,7 @@ class Trainer:
             logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context: contextlib.AbstractContextManager = contextlib.nullcontext()
-        if config.distributed.name != "fsdp":
+        if world_size() == 1 or config.distributed.dp_shard_degree != -1:
             self.amp_context = torch.autocast(
                 device_type=self.device.type,
                 dtype=getattr(torch, config.train.amp_dtype),

@@ -1,8 +1,9 @@
 from collections.abc import Iterable
 from functools import partial
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import torch
+from datasets import Dataset as HFDataset
 from datasets import IterableDataset as HFIterableDataset
 from datasets import disable_progress_bars
 from datasets.distributed import split_dataset_by_node
@@ -27,7 +28,7 @@ class HFTextDataset(IterableDataset):
 
     def __init__(
         self,
-        dataset: HFIterableDataset,
+        dataset: HFDataset | HFIterableDataset,
         tokenizer: BaseTokenizerWrapper,
         seq_len: int,
         use_varlen: bool,
@@ -151,7 +152,7 @@ class HFTextDataset(IterableDataset):
 
     def __iter__(self):
         while True:
-            data_iter = iter(self.data)
+            data_iter = cast(Iterable, iter(self.data))
             match self.strategy:
                 case "streaming":
                     yield from self._streaming_iter(data_iter)

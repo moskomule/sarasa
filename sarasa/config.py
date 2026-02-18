@@ -170,6 +170,12 @@ class Checkpoint:
 
 @dataclasses.dataclass
 class Distributed:
+    dp_replicate_degree: int = 1
+    """Degree of DDP. 1 means no replication"""
+
+    dp_shard_degree: int = -1
+    """Degree of FSDP. -1 means full sharding"""
+
     backend: Literal["nccl", "gloo"] = "nccl"
 
     init_timeout_seconds: int = 300
@@ -178,26 +184,12 @@ class Distributed:
     train_timeout_seconds: int = 100
     """Timeout for distributed training operations after the first iteration."""
 
-    @property
-    def name(self) -> str:
-        return self.__class__.__name__.lower()
-
-
-@dataclasses.dataclass
-class DDP(Distributed):
-    pass
-
-
-@dataclasses.dataclass
-class FSDP(Distributed):
     reshard_after_forward: bool = False
     """Whether to reshard model parameters after each forward pass (FSDP only)."""
 
-    dtype: str | None = None
-    """Dtype for FSDP reduce operations. If None, uses train.dtype."""
-
-    amp_dtype: str | None = None
-    """Dtype for FSDP parameter storage. If None, uses train.amp_dtype."""
+    def __post_init__(self):
+        if not (self.dp_replicate_degree == 1 and self.dp_shard_degree == -1):
+            raise NotImplementedError()
 
 
 @dataclasses.dataclass
@@ -214,7 +206,7 @@ class Config[ModelT: _WithSeqLen, OptimizerT, LRSchedulerT, DataT: _WithSeqLen]:
     profile: Profile = dataclasses.field(default_factory=Profile)
     metrics: Metrics = dataclasses.field(default_factory=Metrics)
     checkpoint: Checkpoint = dataclasses.field(default_factory=Checkpoint)
-    distributed: DDP | FSDP = dataclasses.field(default_factory=DDP)
+    distributed: Distributed = dataclasses.field(default_factory=Distributed)
 
     seed: int = 0
     debug: bool = False
@@ -244,10 +236,6 @@ class Config[ModelT: _WithSeqLen, OptimizerT, LRSchedulerT, DataT: _WithSeqLen]:
             assert self.evaluate.val_size % (self.evaluate.local_batch_size * world_size()) == 0, (
                 "evaluate.val_size must be divisible by (evaluate.local_batch_size * num_devices)"
             )
-
-        if isinstance(self.distributed, FSDP):
-            self.distributed.dtype = self.distributed.dtype or self.train.dtype
-            self.distributed.amp_dtype = self.distributed.amp_dtype or self.train.amp_dtype
 
     @classmethod
     def create(
@@ -343,6 +331,5 @@ __all__ = [
     "Evaluate",
     "Metrics",
     "Checkpoint",
-    "DDP",
-    "FSDP",
+    "Distributed",
 ]

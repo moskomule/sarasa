@@ -40,7 +40,7 @@ class Evaluator:
     ) -> None:
         model.eval()
 
-        loss = torch.zeros(1, device=self.device)
+        losses = []
         total_tokens = torch.zeros(1, device=self.device)
 
         for input_dict, target in self.val_loader:
@@ -50,18 +50,19 @@ class Evaluator:
             }
             target = target.to(self.device, non_blocking=(self.device.type == "cuda"))
             valid_tokens = (target != IGNORE_INDEX).sum()
-            if world_size() > 1:
-                dist.all_reduce(valid_tokens, op=dist.ReduceOp.SUM)
-            total_tokens += valid_tokens
 
             with self.amp_context:
                 pred = model(**input_dict)
-                loss += self.loss_fn(pred, target)
+                loss = self.loss_fn(pred, target)
 
             if world_size() > 1:
+                dist.all_reduce(valid_tokens, op=dist.ReduceOp.SUM)
                 dist.all_reduce(loss, op=dist.ReduceOp.SUM)
 
-        loss /= total_tokens
+            losses.append(loss)
+            total_tokens += valid_tokens
+
+        loss = torch.stack(losses).sum() / total_tokens
 
         self.metrics_processor.val_log(step=step, val_loss=loss.item())
 

@@ -1,4 +1,4 @@
-from sarasa.config import FSDP, AdamW, Config, Data, Evaluate, LRScheduler, Model, Train
+from sarasa.config import AdamW, Config, Data, Evaluate, LRScheduler, Model, Train
 
 config = Config.create(
     model=Model(
@@ -26,6 +26,5 @@ config = Config.create(
         freq=1000,
         val_size=8192,
     ),
-    distributed=FSDP(),
     seed=0,
 )
