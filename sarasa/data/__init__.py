@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from datasets import IterableDataset as HFIterableDataset
 from datasets import load_dataset
@@ -87,8 +87,6 @@ class DataConfig:
     cache_dir: str | None = None
     """Path to cache directory for datasets. If None, default cache directory is used."""
 
-    packing_strategy: Literal["streaming", "document_pack_crop", "document_pack_pad"] = "streaming"
-
     def create(
         self,
         batch_size: int,
@@ -101,7 +99,13 @@ class DataConfig:
         tokenizer = HFTokenizerWrapper(Path(self.tokenizer_path))
         train_ds, val_ds = self.dataset.load(cache_dir=self.cache_dir, val_size=val_cfg.val_size)
         data_loader = DataLoader(
-            HFTextDataset(train_ds, tokenizer, self.seq_len, use_varlen=use_varlen, strategy=self.packing_strategy),
+            HFTextDataset(
+                train_ds,
+                tokenizer,
+                self.seq_len,
+                use_varlen=use_varlen,
+                strategy="document_pack_pad" if use_varlen else "streaming_pad",
+            ),
             batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
@@ -115,7 +119,7 @@ class DataConfig:
                     self.seq_len,
                     infinite=False,
                     use_varlen=use_varlen,
-                    strategy=self.packing_strategy,
+                    strategy="document_pack_pad" if use_varlen else "streaming_pad",
                 ),
                 batch_size,
                 num_workers=self.num_workers,
