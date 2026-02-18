@@ -1,9 +1,8 @@
-from .config import DDP as DDP
-from .config import FSDP as FSDP
 from .config import AdamW as AdamW
 from .config import Checkpoint as Checkpoint
 from .config import Config as Config
 from .config import Data as Data
+from .config import Distributed as Distributed
 from .config import LRScheduler as LRScheduler
 from .config import Metrics as Metrics
 from .config import Model as Model

@@ -172,11 +172,13 @@ def apply_distributed(
     config: Distributed,
     model: BaseModel,
     device: torch.device,
+    param_dtype: torch.dtype,
+    reduce_dtype: torch.dtype,
     compile: bool,
 ) -> None:
     mesh = dist.device_mesh.init_device_mesh(device.type, (world_size(),))
 
-    if config.name == "ddp":
+    if config.dp_replicate_degree != 1:
         from torch.distributed._composable.replicate import replicate
 
         if compile:
@@ -186,19 +188,10 @@ def apply_distributed(
         replicate(model, device_mesh=mesh, bucket_cap_mb=100)
         logger.info("Applied DDP to the model")
 
-    elif config.name == "fsdp":
+    elif config.dp_shard_degree == -1:
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
-        from sarasa.config import FSDP as FSDPConfig
-
-        config = typing.cast(FSDPConfig, config)
-        config.amp_dtype = typing.cast(str, config.amp_dtype)
-        config.dtype = typing.cast(str, config.dtype)
-
-        mp_policy = MixedPrecisionPolicy(
-            param_dtype=getattr(torch, config.amp_dtype),
-            reduce_dtype=getattr(torch, config.dtype),
-        )
+        mp_policy = MixedPrecisionPolicy(param_dtype=param_dtype, reduce_dtype=reduce_dtype)
 
         for block in model.blocks:
             fully_shard(block, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
