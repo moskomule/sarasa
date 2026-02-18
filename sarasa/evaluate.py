@@ -58,6 +58,9 @@ class Evaluator:
                 pred = model(**input_dict)
                 loss += self.loss_fn(pred, target)
 
+            if world_size() > 1:
+                dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+
         loss /= total_tokens
 
         self.metrics_processor.val_log(step=step, val_loss=loss.item())
