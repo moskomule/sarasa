@@ -5,6 +5,7 @@ import enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from datasets import Dataset as HFDataset
 from datasets import IterableDataset as HFIterableDataset
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -26,7 +27,7 @@ class Datasets(enum.StrEnum):
         self,
         cache_dir: str | None,
         val_size: int,
-    ) -> tuple[HFIterableDataset, HFIterableDataset | None]:
+    ) -> tuple[HFIterableDataset, HFDataset | None]:
         match self:
             case Datasets.c4:
                 ds = load_dataset(
@@ -65,7 +66,7 @@ class Datasets(enum.StrEnum):
 
         train_ds, val_ds = ds, None
         if val_size > 0:
-            val_ds = ds.take(val_size)
+            val_ds = HFDataset.from_list(list(ds.take(val_size)))
             train_ds = ds.skip(val_size)
         return train_ds, val_ds
 
