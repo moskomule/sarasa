@@ -204,6 +204,10 @@ def apply_distributed(
             fully_shard(block, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
         fully_shard(model, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
 
+        # sarasa scales the loss by valid tokens
+        # type: ignore
+        model.set_gradient_divide_factor(1.0)
+
         logger.info(
             f"Applied FSDP to the model (param_dtype={mp_policy.param_dtype}, "
             f"reduce_dtype={mp_policy.reduce_dtype}, reshard_after_forward={config.reshard_after_forward})"
