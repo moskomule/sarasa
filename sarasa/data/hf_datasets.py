@@ -89,7 +89,7 @@ class HFTextDataset(IterableDataset):
                 sample_tokens += [self.tokenizer.bos_token_id] * pad_size
 
             input = sample_tokens[:-1]
-            label = sample_tokens[1:-pad_size] + [IGNORE_INDEX] * pad_size
+            label = sample_tokens[1 : self.seq_len + 1 - pad_size] + [IGNORE_INDEX] * pad_size
             input = torch.tensor(input, dtype=torch.int64)
             label = torch.tensor(label, dtype=torch.int64)
             yield self.post_process_fn({"input": input}), label
@@ -130,7 +130,7 @@ class HFTextDataset(IterableDataset):
 
             # if no sequence can fit, pick the shortest one and crop it to fit / pad bos token to fit
             if len(output) < self.seq_len + 1:
-                if self.strategy == "document_pack_crop":
+                if self.strategy == "document_pack":
                     seq = document_buffer[-1]
                     output.extend(seq)
                     output = output[: self.seq_len + 1]
@@ -141,7 +141,7 @@ class HFTextDataset(IterableDataset):
 
             output = output[: self.seq_len + 1]
             input = output[:-1]
-            label = output[1:-pad_size] + [IGNORE_INDEX] * pad_size
+            label = output[1 : self.seq_len + 1 - pad_size] + [IGNORE_INDEX] * pad_size
             input = torch.tensor(input, dtype=torch.int64)
             label = torch.tensor(label, dtype=torch.int64)
             yield self.post_process_fn({"input": input}), label
@@ -157,7 +157,7 @@ class HFTextDataset(IterableDataset):
                     yield from self._streaming_iter(data_iter)
                 case "streaming_pad":
                     yield from self._streaming_pad_iter(data_iter)
-                case "document_pack_crop" | "document_pack_pad":
+                case "document_pack" | "document_pack_pad":
                     yield from self._document_pack_iter(data_iter)
                 case _:
                     raise ValueError(f"Invalid packing strategy: {self.strategy}")
