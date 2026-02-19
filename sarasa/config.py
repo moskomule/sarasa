@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 import sys
 from pathlib import Path
 from typing import Literal
@@ -95,16 +96,23 @@ These classes are not expected to be changed by the user
 """
 
 
+class Dtype(enum.StrEnum):
+    float8 = enum.auto()
+    bfloat16 = enum.auto()
+    float16 = enum.auto()
+    float32 = enum.auto()
+
+
 @dataclasses.dataclass
 class Train:
     steps: int = 10_000
 
     grad_clip: float | None = None
 
-    dtype: Literal["bfloat16", "float32"] = "float32"
+    dtype: Dtype = Dtype.float32
     """Dtype used for model initialization"""
 
-    amp_dtype: Literal["bfloat16", "float16", "float32"] = "bfloat16"
+    amp_dtype: Dtype = Dtype.bfloat16
     """Dtype used for automatic mixed precision training"""
 
     compile: bool = False

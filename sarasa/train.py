@@ -11,7 +11,7 @@ from torch.nn import functional as F
 
 from sarasa.activation_checkpoint import apply_op_sac
 from sarasa.checkpoint import Checkpointer
-from sarasa.config import Config
+from sarasa.config import Config, Dtype
 from sarasa.evaluate import Evaluator
 from sarasa.metrics import MetricsProcessor
 from sarasa.utils import (
@@ -78,6 +78,12 @@ class Trainer:
             for i, block in enumerate(self.model.blocks):
                 self.model.blocks[i] = apply_op_sac(block)
 
+        if config.train.amp_dtype == Dtype.float8:
+            from sarasa.quantize import to_float8
+
+            logger.info("Converting model to float8")
+            to_float8(self.model)
+
         if config.train.compile:
             logger.info("Compiling the model")
             for block in self.model.blocks:
@@ -107,7 +113,11 @@ class Trainer:
             logger.info(f"Gradient accumulation step is set to: {self.grad_accum_steps}")
 
         self.amp_context: contextlib.AbstractContextManager = contextlib.nullcontext()
-        if world_size() == 1 or config.distributed.dp_shard_degree != -1:
+        if (
+            (config.train.dtype != config.train.amp_dtype)
+            and (config.train.amp_dtype != Dtype.float8)
+            and (world_size() == 1 or config.distributed.dp_shard_degree != -1)
+        ):
             self.amp_context = torch.autocast(
                 device_type=self.device.type,
                 dtype=getattr(torch, config.train.amp_dtype),
