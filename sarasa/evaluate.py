@@ -40,24 +40,29 @@ class Evaluator:
     ) -> None:
         model.eval()
 
-        loss = torch.zeros(1, device=self.device)
-        num_steps = 0
+        losses = []
+        total_tokens = torch.zeros(1, device=self.device)
 
         for input_dict, target in self.val_loader:
-            num_steps += 1
             self.metrics_processor.ntokens_since_last_log += target.numel()
             input_dict = {
                 k: v.to(self.device, non_blocking=(self.device.type == "cuda")) for k, v in input_dict.items()
             }
             target = target.to(self.device, non_blocking=(self.device.type == "cuda"))
             valid_tokens = (target != IGNORE_INDEX).sum()
-            if world_size() > 1:
-                dist.all_reduce(valid_tokens, op=dist.ReduceOp.SUM)
+
             with self.amp_context:
                 pred = model(**input_dict)
-                loss += self.loss_fn(pred, target) / valid_tokens
+                loss = self.loss_fn(pred, target)
 
-        loss /= num_steps
+            if world_size() > 1:
+                dist.all_reduce(valid_tokens, op=dist.ReduceOp.SUM)
+                dist.all_reduce(loss, op=dist.ReduceOp.SUM)
+
+            losses.append(loss)
+            total_tokens += valid_tokens
+
+        loss = torch.stack(losses).sum() / total_tokens
 
         self.metrics_processor.val_log(step=step, val_loss=loss.item())
 

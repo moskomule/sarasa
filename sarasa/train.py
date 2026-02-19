@@ -96,6 +96,8 @@ class Trainer:
                 config.distributed,
                 self.model,
                 device=self.device,
+                param_dtype=getattr(torch, config.train.amp_dtype),
+                reduce_dtype=getattr(torch, config.train.dtype),
                 compile=config.train.compile,
             )
 
@@ -114,7 +116,7 @@ class Trainer:
         if (
             (config.train.dtype != config.train.amp_dtype)
             and (config.train.amp_dtype != Dtype.float8)
-            and (world_size() == 1 or config.distributed.name == "fsdp")
+            and (world_size() == 1 or config.distributed.dp_shard_degree != -1)
         ):
             self.amp_context = torch.autocast(
                 device_type=self.device.type,

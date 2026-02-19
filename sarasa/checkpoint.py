@@ -29,7 +29,7 @@ class ModelWrapper(Stateful):
         return {"model": get_model_state_dict(self.model)}
 
     def load_state_dict(self, state_dict: dict[str, dict]) -> None:
-        raise set_model_state_dict(self.model, state_dict["model"])
+        set_model_state_dict(self.model, state_dict["model"])
 
 
 class Checkpointer:
@@ -63,7 +63,6 @@ class Checkpointer:
         self,
         step: int,
     ) -> None:
-
         checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
         state_dict = self.state.state_dict()
         dcp.load(
@@ -76,7 +75,6 @@ class Checkpointer:
         self,
         step: int,
     ) -> None:
-
         begin = time.perf_counter()
         checkpoint_id = str(self.checkpoint_dir / f"checkpoint_{step:09d}")
 

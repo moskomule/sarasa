@@ -15,8 +15,7 @@ from loguru import logger
 from torch import distributed as dist
 
 if typing.TYPE_CHECKING:
-    from sarasa.config import FSDP as FSDPConfig
-    from sarasa.config import Config, Distributed, Dtype, Profile
+    from sarasa.config import Config, Distributed, Profile
     from sarasa.models import BaseModel
 
 
@@ -173,11 +172,13 @@ def apply_distributed(
     config: Distributed,
     model: BaseModel,
     device: torch.device,
+    param_dtype: torch.dtype,
+    reduce_dtype: torch.dtype,
     compile: bool,
 ) -> None:
     mesh = dist.device_mesh.init_device_mesh(device.type, (world_size(),))
 
-    if config.name == "ddp":
+    if config.dp_replicate_degree != 1:
         from torch.distributed._composable.replicate import replicate
 
         if compile:
@@ -187,21 +188,18 @@ def apply_distributed(
         replicate(model, device_mesh=mesh, bucket_cap_mb=100)
         logger.info("Applied DDP to the model")
 
-    elif config.name == "fsdp":
+    elif config.dp_shard_degree == -1:
         from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
-        config = typing.cast(FSDPConfig, config)
-        config.dtype = typing.cast(Dtype, config.dtype)
-        config.amp_dtype = typing.cast(Dtype, config.amp_dtype)
-
-        mp_policy = MixedPrecisionPolicy(
-            param_dtype=getattr(torch, config.amp_dtype),
-            reduce_dtype=getattr(torch, config.dtype),
-        )
+        mp_policy = MixedPrecisionPolicy(param_dtype=param_dtype, reduce_dtype=reduce_dtype)
 
         for block in model.blocks:
             fully_shard(block, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
         fully_shard(model, mesh=mesh, mp_policy=mp_policy, reshard_after_forward=config.reshard_after_forward)
+
+        # sarasa scales the loss by valid tokens
+        # type: ignore
+        model.set_gradient_divide_factor(1.0)
 
         logger.info(
             f"Applied FSDP to the model (param_dtype={mp_policy.param_dtype}, "
