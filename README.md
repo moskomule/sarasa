@@ -9,7 +9,7 @@ A minimum LLM training framework built on pure PyTorch with simplicity and exten
 ## Installation
 
 ```bash
-uv sync [--extra cpu|cu128|cu130] [--extra flash_attn]
+uv sync [--extra cpu|cu128|cu130] [--extra flash-attn]
 ```
 
 or
