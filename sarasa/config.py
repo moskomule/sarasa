@@ -15,9 +15,9 @@ These classes have `create` methods to instantiate the actual objects
 
 Users can define their own configuration dataclasses and pass them to Config.from_cli to use custom components
 """
-from sarasa.data import DataConfig as Data  # noqa
-from sarasa.models import ModelConfig as Model  # noqa
-from sarasa.optimizers import AdamW  # noqa
+from sarasa.data import DataConfig as Data
+from sarasa.models import ModelConfig as Model
+from sarasa.optimizers import AdamW
 
 
 @dataclasses.dataclass
@@ -322,14 +322,14 @@ class Config[ModelT: _WithSeqLen, OptimizerT, LRSchedulerT, DataT: _WithSeqLen]:
 
 
 __all__ = [
-    "Config",
-    "Model",
     "AdamW",
-    "LRScheduler",
-    "Data",
-    "Train",
-    "Evaluate",
-    "Metrics",
     "Checkpoint",
+    "Config",
+    "Data",
     "Distributed",
+    "Evaluate",
+    "LRScheduler",
+    "Metrics",
+    "Model",
+    "Train",
 ]
