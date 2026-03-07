@@ -7,17 +7,10 @@ from typing import Literal
 
 import torch
 
-from sarasa.utils import world_size
-
-"""
-Variable configuration dataclasses for model, optimizer, lr scheduler, and data
-These classes have `create` methods to instantiate the actual objects
-
-Users can define their own configuration dataclasses and pass them to Config.from_cli to use custom components
-"""
 from sarasa.data import DataConfig as Data
 from sarasa.models import ModelConfig as Model
 from sarasa.optimizers import AdamW
+from sarasa.utils import world_size
 
 
 @dataclasses.dataclass
