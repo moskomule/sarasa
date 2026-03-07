@@ -80,11 +80,18 @@ def setup_logger(config: Config) -> None:
                 "Logger is set up for distributed training. Only rank 0 will log messages. Use --debug for more verbose logging."
             )
 
+            import datasets
+
+            datasets.enable_progress_bars()
+            datasets.utils.logging.set_verbosity_error()
+
+            logger.info("Disabled HuggingFace Datasets progress bars for non-main ranks.")
+
 
 @contextlib.contextmanager
 def set_dtype(
     dtype: torch.dtype,
-) -> typing.Generator[None, None, None]:
+) -> typing.Generator[None]:
     old_dtype = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
     try:
