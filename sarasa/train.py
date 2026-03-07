@@ -287,3 +287,13 @@ class Trainer:
 
     def __del__(self):
         self.close()
+
+
+if __name__ == "__main__":
+    from sarasa.optimizers import AdamW, Muon
+
+    # optim:adam-w, optim:muon, ... to select optimizer
+    config = Config.from_cli(optim_type=AdamW | Muon)
+
+    trainer = Trainer(config)
+    trainer.train()
