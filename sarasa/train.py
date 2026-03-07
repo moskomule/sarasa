@@ -1,7 +1,7 @@
 import contextlib
 import os
 import time
-from typing import Iterator
+from collections.abc import Iterator
 
 import torch
 import torch.distributed as dist
@@ -161,6 +161,8 @@ class Trainer:
                     if self.evaluator is not None and self.evaluator.trigger(self.step):
                         logger.info("Starting evaluation...")
                         self.evaluator.evaluate(self.model, self.step)
+                        if world_size() > 1:
+                            dist.barrier()  # ensure all processes finish evaluation before next training step
 
                     profiler.step()
 
