@@ -80,12 +80,13 @@ def setup_logger(config: Config) -> None:
                 "Logger is set up for distributed training. Only rank 0 will log messages. Use --debug for more verbose logging."
             )
 
-            import datasets
+            if rank() != 0:
+                import datasets
 
-            datasets.enable_progress_bars()
-            datasets.utils.logging.set_verbosity_error()
+                datasets.enable_progress_bars()
+                datasets.utils.logging.set_verbosity_error()
 
-            logger.info("Disabled HuggingFace Datasets progress bars for non-main ranks.")
+            logger.info("Disabled HuggingFace Datasets progress bars and logging for non-main ranks.")
 
 
 @contextlib.contextmanager
