@@ -49,8 +49,8 @@ cu128 = [
 cu130 = [
   "torch>=2.10.0",
 ]
-flash_attn = [
-  "flash-attn-cute",
+flash-attn = [
+    "flash-attn-4>=4.0.0b4",
 ]
 
 [tool.uv]
@@ -68,7 +68,6 @@ torch = [
   { index = "pytorch-cu128", extra = "cu128" },
   { index = "pytorch-cu130", extra = "cu130" },
 ]
-flash-attn-cute = { git = "https://github.com/Dao-AILab/flash-attention/", subdirectory = "flash_attn/cute" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

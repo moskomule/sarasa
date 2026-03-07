@@ -1,5 +1,5 @@
+from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
-from typing import Callable, Iterator
 
 import torch
 import torch.distributed as dist
