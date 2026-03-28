@@ -52,6 +52,9 @@ cu130 = [
 flash-attn = [
     "flash-attn-4>=4.0.0b4",
 ]
+quantize = [
+    "torchao>=0.16.0",
+]
 
 [tool.uv]
 conflicts = [
