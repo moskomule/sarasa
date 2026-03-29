@@ -1,25 +1,16 @@
 from __future__ import annotations
 
-import inspect
-from functools import partial
-from typing import Callable, ClassVar, NamedTuple, cast
+from collections.abc import Callable
+from typing import ClassVar, NamedTuple, cast
 
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.nn.attention.varlen import varlen_attn as _varlen_attn
+from torch.nn.attention.varlen import varlen_attn
 from torch.types import Number
 
 from sarasa.models import ModelConfig
 from sarasa.models.utils import RoPE
-
-if inspect.signature(_varlen_attn).parameters.get("window_size") is not None:
-    # torch>2.10
-    # after the release of torch 2.11, this branch can be removed
-    varlen_attn = partial(_varlen_attn, window_size=(-1, 0))
-else:
-    # torch==2.10
-    varlen_attn = partial(_varlen_attn, is_causal=True)
 
 
 class VarlenMetaData(NamedTuple):
@@ -62,6 +53,7 @@ class VarlenAttention(nn.Module):
             cu_seq_k=metadata.cu_seq_k.view(-1),
             max_q=int(metadata.max_q),
             max_k=int(metadata.max_k),
+            window_size=(-1, 0),
         )  # (B*T, num_heads, head_dim)
         return out.reshape(query.size(0), query.size(2), -1)  # (B, T, num_heads * head_dim)
 

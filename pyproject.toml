@@ -34,20 +34,20 @@ format-jinja = """
 
 [dependency-groups]
 dev = [
-    "pyrefly>=0.52.0",
+    "pyrefly>=0.58.0",
     "pytest>=9.0.2",
     "ruff>=0.14.14",
 ]
 
 [project.optional-dependencies]
 cpu = [
-  "torch>=2.10.0",
+  "torch>=2.11.0",
 ]
 cu128 = [
-  "torch>=2.10.0",
+  "torch>=2.11.0",
 ]
 cu130 = [
-  "torch>=2.10.0",
+  "torch>=2.11.0",
 ]
 flash-attn = [
     "flash-attn-4>=4.0.0b4",

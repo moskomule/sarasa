@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import torch
 
@@ -13,9 +13,12 @@ from sarasa.optimizers import AdamW
 from sarasa.utils import world_size
 
 
-@dataclasses.dataclass
-class _WithSeqLen:
-    seq_len: int | None = None
+class _WithSeqLen(Protocol):
+    @property
+    def seq_len(self) -> int | None: ...
+
+    @seq_len.setter
+    def seq_len(self, value: int | None): ...
 
 
 @dataclasses.dataclass
@@ -286,6 +289,8 @@ class Config[ModelT: _WithSeqLen, OptimizerT, LRSchedulerT, DataT: _WithSeqLen]:
             if spec is not None and spec.loader is not None:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
+            else:
+                raise ValueError(f"Failed to load spec for config file {config_file}.")
             configs = [
                 config
                 for config in module.__dict__.values()
