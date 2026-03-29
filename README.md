@@ -59,7 +59,7 @@ uv run -m sarasa.train --help
 However, if you want to download it, you can do so with the following command:
 
 ```bash
-HF_TOKEN=... HF_HOME=... uv run -m sarasa.data.download --dataset fineweb_edu
+HF_TOKEN=... HF_HOME=... uv run -m sarasa.data.download fineweb_edu
 
 ```
 
