@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from datasets import Dataset as HFDataset
 from datasets import IterableDataset as HFIterableDataset
@@ -25,47 +26,48 @@ class Datasets(enum.StrEnum):
 
     def load(
         self,
-        cache_dir: str | None,
-        val_size: int,
-    ) -> tuple[HFIterableDataset, HFDataset | None]:
+        cache_dir: str | None = None,
+        val_size: int = 0,
+        download: bool = False,
+    ) -> tuple[HFIterableDataset | HFDataset, HFDataset | None]:
+        _load_dataset: partial[HFDataset | HFIterableDataset] = partial(
+            load_dataset,
+            cache_dir=cache_dir,
+            num_proc=8 if download else None,
+            streaming=not download,
+        )
+
         match self:
             case Datasets.c4:
-                ds = load_dataset(
+                ds = _load_dataset(
                     "allenai/c4",
                     name="en",
                     split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu:
-                ds = load_dataset(
+                ds = _load_dataset(
                     "HuggingFaceFW/fineweb-edu",
                     name="default",
                     split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu_100b:
-                ds = load_dataset(
+                ds = _load_dataset(
                     "HuggingFaceFW/fineweb-edu",
                     name="sample-100BT",
                     split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
                 )
             case Datasets.fineweb_edu_dedup:
-                ds = load_dataset(
+                ds = _load_dataset(
                     "HuggingFaceTB/smollm-corpus",
                     "fineweb-edu-dedup",
                     split="train",
-                    streaming=True,
-                    cache_dir=cache_dir,
                 )
             case _:
                 raise ValueError(f"Unsupported dataset: {self}")
 
         train_ds, val_ds = ds, None
-        if val_size > 0:
+        if not download and val_size > 0:
+            ds = cast(HFIterableDataset, ds)
             val_ds = HFDataset.from_list(list(ds.take(val_size)))
             train_ds = ds.skip(val_size)
         return train_ds, val_ds

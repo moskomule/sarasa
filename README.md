@@ -44,7 +44,7 @@ uvx hf download --local-dir . --include "tokenizer*" "meta-llama/Llama-3.1-8B"
 Then, the following command starts training of a GPT model on FineWeb-edu with a single or multiple GPUs.
 
 ```bash
-uv run torchrun --nproc_per_node="gpu" main.py \
+uv run torchrun --nproc_per_node="gpu" -m sarasa.train \
 --config-file configs/example.py \
 [--train.local-batch-size 8 ...] # override config options as needed
 ```
@@ -52,7 +52,15 @@ uv run torchrun --nproc_per_node="gpu" main.py \
 For details, run
 
 ```bash
-uv run torchrun --nproc_per_node="gpu" main.py --help
+uv run -m sarasa.train --help
+```
+
+`sarasa` uses huggingface datasets' streaming mode by default, so you don't need to download the dataset in advance.
+However, if you want to download it, you can do so with the following command:
+
+```bash
+HF_TOKEN=... HF_HOME=... uv run -m sarasa.data.download fineweb_edu
+
 ```
 
 ### Extending `sarasa` with Custom Components
